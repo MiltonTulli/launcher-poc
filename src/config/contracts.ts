@@ -1,6 +1,44 @@
 import { Address } from "viem";
 
-// TallyLaunchFactory ABI - extracted from the contract
+// ============================================
+// SEPOLIA TEST CONTRACTS (from Happy Path Test Plan)
+// ============================================
+export const SEPOLIA_CONTRACTS = {
+  TestUSDC: "0x0B50239E3731956F90fC52eF07c55C0631A004D2" as Address,
+  SaleToken: "0x39BBeB53c8e9c2A1dE04644FBcF9Ebf5dF396080" as Address,
+  PermitterFactory: "0x1CAc31307b284a18c59437Df1dF4b90ABa0c0c99" as Address,
+  LockupContract: "0xe5b496e97F364f6f1567D67D8523Bb6d89dc4413" as Address,
+  TallyLaunchFactory: "0x6f32468767bBb1BC4516fA50420FD14C75c26d60" as Address,
+} as const;
+
+// ============================================
+// TOKEN SOURCE ENUM
+// ============================================
+export enum TokenSource {
+  MINT = 0,
+  PERMIT2 = 1,
+  TRANSFER = 2,
+}
+
+export const TOKEN_SOURCE_OPTIONS = [
+  { value: TokenSource.MINT, label: "Mint", description: "Factory mints tokens" },
+  { value: TokenSource.PERMIT2, label: "Permit2", description: "Transfer via Permit2 approval" },
+  { value: TokenSource.TRANSFER, label: "Transfer", description: "Direct transfer to orchestrator" },
+] as const;
+
+// ============================================
+// TICK SPACING (must match pool fee tier)
+// ============================================
+export const TICK_SPACING_BY_FEE: Record<number, number> = {
+  100: 1,    // 0.01% fee tier
+  500: 10,   // 0.05% fee tier
+  3000: 60,  // 0.30% fee tier
+  10000: 200, // 1.00% fee tier
+};
+
+// ============================================
+// TallyLaunchFactory ABI (UPDATED with new fields)
+// ============================================
 export const TALLY_LAUNCH_FACTORY_ABI = [
   {
     type: "constructor",
@@ -83,17 +121,21 @@ export const TALLY_LAUNCH_FACTORY_ABI = [
         type: "tuple",
         internalType: "struct LaunchParams",
         components: [
+          { name: "tokenSource", type: "uint8", internalType: "enum TokenSource" },
           { name: "tokenAmount", type: "uint256", internalType: "uint256" },
           { name: "auctionDuration", type: "uint256", internalType: "uint256" },
           { name: "pricingSteps", type: "uint256", internalType: "uint256" },
           { name: "reservePrice", type: "uint256", internalType: "uint256" },
+          { name: "startTime", type: "uint256", internalType: "uint256" },
           { name: "liquidityAllocation", type: "uint256", internalType: "uint256" },
           { name: "treasuryAllocation", type: "uint256", internalType: "uint256" },
+          { name: "treasury", type: "address", internalType: "address" },
           { name: "poolFeeTier", type: "uint24", internalType: "uint24" },
+          { name: "tickSpacing", type: "int24", internalType: "int24" },
           { name: "lockupDuration", type: "uint256", internalType: "uint256" },
           { name: "distributionDelay", type: "uint256", internalType: "uint256" },
-          { name: "treasury", type: "address", internalType: "address" },
           { name: "positionBeneficiary", type: "address", internalType: "address" },
+          { name: "validationHook", type: "address", internalType: "address" },
         ],
       },
     ],
@@ -254,23 +296,29 @@ export const TALLY_LAUNCH_FACTORY_ABI = [
   },
 ] as const;
 
-// Contract addresses per network
+// ============================================
+// CONTRACT ADDRESSES PER NETWORK
+// ============================================
 export const TALLY_LAUNCH_FACTORY_ADDRESSES: Record<number, Address> = {
   1: "0x0000000000000000000000000000000000000000", // Mainnet - TBD
-  11155111: "0x6f32468767bbb1bc4516fa50420fd14c75c26d60", // Sepolia - TBD
+  11155111: SEPOLIA_CONTRACTS.TallyLaunchFactory, // Sepolia
   8453: "0x0000000000000000000000000000000000000000", // Base - TBD
   84532: "0x0000000000000000000000000000000000000000", // Base Sepolia - TBD
 };
 
-// Pool fee tiers
+// ============================================
+// POOL FEE TIERS
+// ============================================
 export const POOL_FEE_TIERS = [
-  { value: 100, label: "0.01% - Stablecoins" },
-  { value: 500, label: "0.05% - Correlated pairs" },
-  { value: 3000, label: "0.30% - Standard" },
-  { value: 10000, label: "1.00% - Exotic pairs" },
+  { value: 100, label: "0.01% - Stablecoins", tickSpacing: 1 },
+  { value: 500, label: "0.05% - Correlated pairs", tickSpacing: 10 },
+  { value: 3000, label: "0.30% - Standard", tickSpacing: 60 },
+  { value: 10000, label: "1.00% - Exotic pairs", tickSpacing: 200 },
 ] as const;
 
-// Validation constants (from contract)
+// ============================================
+// VALIDATION CONSTANTS
+// ============================================
 export const LAUNCH_CONSTRAINTS = {
   MIN_AUCTION_DURATION: 3600, // 1 hour in seconds
   MAX_AUCTION_DURATION: 2592000, // 30 days in seconds
@@ -281,55 +329,229 @@ export const LAUNCH_CONSTRAINTS = {
   BASIS_POINTS: 10000,
 } as const;
 
-// LaunchParams type
+// ============================================
+// TYPES
+// ============================================
+
+// LaunchParams type (matches contract struct)
 export interface LaunchParams {
+  tokenSource: TokenSource;
   tokenAmount: bigint;
   auctionDuration: bigint;
   pricingSteps: bigint;
   reservePrice: bigint;
+  startTime: bigint;
   liquidityAllocation: bigint;
   treasuryAllocation: bigint;
+  treasury: Address;
   poolFeeTier: number;
+  tickSpacing: number;
   lockupDuration: bigint;
   distributionDelay: bigint;
-  treasury: Address;
   positionBeneficiary: Address;
+  validationHook: Address;
 }
 
 // Form values type (user-friendly)
 export interface LaunchFormValues {
+  // Token config
   token: string;
   paymentToken: string;
   operator: string;
+  tokenSource: string;
   tokenAmount: string;
+  tokenDecimals: string;
+  paymentTokenDecimals: string;
+  // Auction config
   auctionDurationDays: string;
   auctionDurationHours: string;
   pricingSteps: string;
   reservePrice: string;
+  startTime: string; // "0" for immediate, or ISO timestamp
+  // Allocation
   liquidityAllocationPercent: string;
   treasuryAllocationPercent: string;
+  treasury: string;
+  // Pool config
   poolFeeTier: string;
+  tickSpacing: string;
+  // Lockup config
   lockupDurationDays: string;
   distributionDelayDays: string;
-  treasury: string;
   positionBeneficiary: string;
+  // Validation
+  validationHook: string;
 }
 
-// Default form values
+// ============================================
+// DEFAULT FORM VALUES
+// ============================================
 export const DEFAULT_FORM_VALUES: LaunchFormValues = {
   token: "",
   paymentToken: "",
   operator: "",
+  tokenSource: TokenSource.TRANSFER.toString(),
   tokenAmount: "",
+  tokenDecimals: "18",
+  paymentTokenDecimals: "18",
   auctionDurationDays: "7",
   auctionDurationHours: "0",
   pricingSteps: "100",
   reservePrice: "",
-  liquidityAllocationPercent: "80",
-  treasuryAllocationPercent: "20",
+  startTime: "0",
+  liquidityAllocationPercent: "50",
+  treasuryAllocationPercent: "50",
+  treasury: "",
   poolFeeTier: "3000",
+  tickSpacing: "60",
   lockupDurationDays: "180",
   distributionDelayDays: "0",
-  treasury: "",
   positionBeneficiary: "",
+  validationHook: "0x0000000000000000000000000000000000000000",
 };
+
+// ============================================
+// PRESETS (from Happy Path Test Plan)
+// ============================================
+export interface LaunchPreset {
+  id: string;
+  name: string;
+  description: string;
+  values: Partial<LaunchFormValues>;
+}
+
+export const LAUNCH_PRESETS: LaunchPreset[] = [
+  {
+    id: "test-case-1",
+    name: "Test Case 1: Basic Launch",
+    description: "1M SALE tokens, 1 hour auction, 50/50 split, 0.3% fee tier",
+    values: {
+      token: SEPOLIA_CONTRACTS.SaleToken,
+      paymentToken: SEPOLIA_CONTRACTS.TestUSDC,
+      tokenSource: TokenSource.TRANSFER.toString(),
+      tokenAmount: "1000000",
+      tokenDecimals: "18",
+      paymentTokenDecimals: "6",
+      auctionDurationDays: "0",
+      auctionDurationHours: "1",
+      pricingSteps: "100",
+      reservePrice: "0.1", // 0.10 USDC per SALE (in payment token decimals)
+      startTime: "0",
+      liquidityAllocationPercent: "50",
+      treasuryAllocationPercent: "50",
+      poolFeeTier: "3000",
+      tickSpacing: "60",
+      lockupDurationDays: "0", // 5 minutes for testing (will convert to seconds)
+      distributionDelayDays: "0",
+      validationHook: "0x0000000000000000000000000000000000000000",
+    },
+  },
+  {
+    id: "production-launch",
+    name: "Production Launch",
+    description: "7 day auction, 80/20 liquidity split, 6 month lockup",
+    values: {
+      tokenSource: TokenSource.TRANSFER.toString(),
+      tokenDecimals: "18",
+      paymentTokenDecimals: "18",
+      auctionDurationDays: "7",
+      auctionDurationHours: "0",
+      pricingSteps: "500",
+      startTime: "0",
+      liquidityAllocationPercent: "80",
+      treasuryAllocationPercent: "20",
+      poolFeeTier: "3000",
+      tickSpacing: "60",
+      lockupDurationDays: "180",
+      distributionDelayDays: "1",
+      validationHook: "0x0000000000000000000000000000000000000000",
+    },
+  },
+  {
+    id: "quick-test",
+    name: "Quick Test (Sepolia)",
+    description: "Minimum duration, short lockup, pre-filled test tokens",
+    values: {
+      token: SEPOLIA_CONTRACTS.SaleToken,
+      paymentToken: SEPOLIA_CONTRACTS.TestUSDC,
+      tokenSource: TokenSource.TRANSFER.toString(),
+      tokenAmount: "10000",
+      tokenDecimals: "18",
+      paymentTokenDecimals: "6",
+      auctionDurationDays: "0",
+      auctionDurationHours: "1",
+      pricingSteps: "10",
+      reservePrice: "0.01",
+      startTime: "0",
+      liquidityAllocationPercent: "50",
+      treasuryAllocationPercent: "50",
+      poolFeeTier: "3000",
+      tickSpacing: "60",
+      lockupDurationDays: "0",
+      distributionDelayDays: "0",
+      validationHook: "0x0000000000000000000000000000000000000000",
+    },
+  },
+];
+
+// ============================================
+// WIZARD STEPS (from Happy Path Test Plan)
+// ============================================
+export const WIZARD_STEPS = [
+  {
+    id: "setup",
+    number: 1,
+    title: "Setup",
+    description: "Configure tokens and mint/transfer to operator",
+  },
+  {
+    id: "create-permitter",
+    number: 2,
+    title: "Permitter (Optional)",
+    description: "Create validation hook if needed",
+  },
+  {
+    id: "create-launch",
+    number: 3,
+    title: "Create Launch",
+    description: "Deploy orchestrator via factory",
+  },
+  {
+    id: "fund-auction",
+    number: 4,
+    title: "Fund & Start",
+    description: "Transfer tokens and start auction",
+  },
+  {
+    id: "place-bids",
+    number: 5,
+    title: "Place Bids",
+    description: "Bidders submit bids through CCA",
+  },
+  {
+    id: "finalize",
+    number: 6,
+    title: "Finalize",
+    description: "End auction and determine clearing price",
+  },
+  {
+    id: "distribute",
+    number: 7,
+    title: "Distribute",
+    description: "Distribute tokens and create LP",
+  },
+  {
+    id: "verify-lockup",
+    number: 8,
+    title: "Verify Lockup",
+    description: "Confirm position lock and fee collection",
+  },
+  {
+    id: "unlock",
+    number: 9,
+    title: "Unlock",
+    description: "Withdraw position after lockup period",
+  },
+] as const;
+
+export type WizardStepId = (typeof WIZARD_STEPS)[number]["id"];

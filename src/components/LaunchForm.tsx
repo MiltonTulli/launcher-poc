@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { parseEther, isAddress, Address } from "viem";
+import { useState, useCallback, useEffect } from "react";
+import { parseUnits, isAddress, Address, decodeEventLog } from "viem";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,10 +15,25 @@ import {
   TALLY_LAUNCH_FACTORY_ADDRESSES,
   POOL_FEE_TIERS,
   LAUNCH_CONSTRAINTS,
+  TOKEN_SOURCE_OPTIONS,
+  TICK_SPACING_BY_FEE,
+  LAUNCH_PRESETS,
   LaunchFormValues,
   DEFAULT_FORM_VALUES,
+  TokenSource,
 } from "@/config/contracts";
-import { Rocket, Wallet, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
+import {
+  Rocket,
+  Wallet,
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  Sparkles,
+  ChevronDown,
+  Info,
+  Clock,
+  Settings2,
+} from "lucide-react";
 
 interface LaunchResult {
   launchId: bigint;
@@ -33,6 +48,7 @@ export function LaunchForm() {
   const [formValues, setFormValues] = useState<LaunchFormValues>(DEFAULT_FORM_VALUES);
   const [errors, setErrors] = useState<Partial<Record<keyof LaunchFormValues, string>>>({});
   const [launchResult, setLaunchResult] = useState<LaunchResult | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const contractAddress = TALLY_LAUNCH_FACTORY_ADDRESSES[chainId];
 
@@ -42,10 +58,41 @@ export function LaunchForm() {
     hash,
   });
 
+  // Auto-fill operator with connected address
+  useEffect(() => {
+    if (address && !formValues.operator) {
+      setFormValues((prev) => ({ ...prev, operator: address }));
+    }
+  }, [address, formValues.operator]);
+
+  // Auto-update tickSpacing when poolFeeTier changes
+  useEffect(() => {
+    const feeTier = parseInt(formValues.poolFeeTier);
+    const tickSpacing = TICK_SPACING_BY_FEE[feeTier];
+    if (tickSpacing && formValues.tickSpacing !== tickSpacing.toString()) {
+      setFormValues((prev) => ({ ...prev, tickSpacing: tickSpacing.toString() }));
+    }
+  }, [formValues.poolFeeTier, formValues.tickSpacing]);
+
   const updateField = useCallback((field: keyof LaunchFormValues, value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
   }, []);
+
+  const applyPreset = useCallback((presetId: string) => {
+    const preset = LAUNCH_PRESETS.find((p) => p.id === presetId);
+    if (preset) {
+      setFormValues((prev) => ({
+        ...prev,
+        ...preset.values,
+        // Keep operator as connected address
+        operator: prev.operator || address || "",
+        treasury: preset.values.treasury || prev.treasury || address || "",
+        positionBeneficiary: preset.values.positionBeneficiary || prev.positionBeneficiary || address || "",
+      }));
+      setErrors({});
+    }
+  }, [address]);
 
   const validateForm = useCallback((): boolean => {
     const newErrors: Partial<Record<keyof LaunchFormValues, string>> = {};
@@ -56,6 +103,9 @@ export function LaunchForm() {
     if (!isAddress(formValues.operator)) newErrors.operator = "Invalid operator address";
     if (!isAddress(formValues.treasury)) newErrors.treasury = "Invalid treasury address";
     if (!isAddress(formValues.positionBeneficiary)) newErrors.positionBeneficiary = "Invalid beneficiary address";
+    if (formValues.validationHook && formValues.validationHook !== "0x0000000000000000000000000000000000000000" && !isAddress(formValues.validationHook)) {
+      newErrors.validationHook = "Invalid hook address";
+    }
 
     // Token amount
     if (!formValues.tokenAmount || parseFloat(formValues.tokenAmount) <= 0) {
@@ -114,22 +164,36 @@ export function LaunchForm() {
       return;
     }
 
+    const tokenDecimals = parseInt(formValues.tokenDecimals);
+    const paymentDecimals = parseInt(formValues.paymentTokenDecimals);
+
     const auctionDuration =
       BigInt(parseInt(formValues.auctionDurationDays || "0") * 86400 +
         parseInt(formValues.auctionDurationHours || "0") * 3600);
 
+    // Calculate startTime
+    let startTime = BigInt(0);
+    if (formValues.startTime !== "0" && formValues.startTime !== "") {
+      const date = new Date(formValues.startTime);
+      startTime = BigInt(Math.floor(date.getTime() / 1000));
+    }
+
     const params = {
-      tokenAmount: parseEther(formValues.tokenAmount),
+      tokenSource: parseInt(formValues.tokenSource),
+      tokenAmount: parseUnits(formValues.tokenAmount, tokenDecimals),
       auctionDuration,
       pricingSteps: BigInt(formValues.pricingSteps),
-      reservePrice: parseEther(formValues.reservePrice),
+      reservePrice: parseUnits(formValues.reservePrice, paymentDecimals),
+      startTime,
       liquidityAllocation: BigInt(parseInt(formValues.liquidityAllocationPercent) * 100),
       treasuryAllocation: BigInt(parseInt(formValues.treasuryAllocationPercent) * 100),
+      treasury: formValues.treasury as Address,
       poolFeeTier: parseInt(formValues.poolFeeTier),
+      tickSpacing: parseInt(formValues.tickSpacing),
       lockupDuration: BigInt(parseInt(formValues.lockupDurationDays || "0") * 86400),
       distributionDelay: BigInt(parseInt(formValues.distributionDelayDays || "0") * 86400),
-      treasury: formValues.treasury as Address,
       positionBeneficiary: formValues.positionBeneficiary as Address,
+      validationHook: (formValues.validationHook || "0x0000000000000000000000000000000000000000") as Address,
     };
 
     writeContract({
@@ -146,20 +210,50 @@ export function LaunchForm() {
   }, [formValues, validateForm, contractAddress, writeContract]);
 
   // Update launch result when transaction succeeds
-  if (isSuccess && receipt && hash && !launchResult) {
-    // Parse the LaunchCreated event from logs
-    const launchCreatedLog = receipt.logs.find(
-      (log) => log.topics[0] === "0x..." // Would be the actual topic hash
-    );
+  useEffect(() => {
+    if (isSuccess && receipt && hash && !launchResult) {
+      // Find and decode the LaunchCreated event
+      let launchId = BigInt(0);
+      let launcherAddress: Address = "0x0000000000000000000000000000000000000000";
 
-    // For now, we'll set a placeholder - in production you'd decode the event
-    setLaunchResult({
-      launchId: BigInt(0),
-      launcherAddress: receipt.logs[0]?.address || "0x0000000000000000000000000000000000000000",
-      txHash: hash,
-      params: formValues,
-    });
-  }
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: TALLY_LAUNCH_FACTORY_ABI,
+            data: log.data,
+            topics: log.topics,
+          });
+
+          if (decoded.eventName === "LaunchCreated") {
+            const args = decoded.args as {
+              launchId: bigint;
+              launcherAddress: Address;
+              token: Address;
+              paymentToken: Address;
+              operator: Address;
+              tokenAmount: bigint;
+              auctionDuration: bigint;
+              lockupDuration: bigint;
+              platformFeeOnLPFees: bigint;
+            };
+            launchId = args.launchId;
+            launcherAddress = args.launcherAddress;
+            break;
+          }
+        } catch {
+          // Not the event we're looking for, continue
+          continue;
+        }
+      }
+
+      setLaunchResult({
+        launchId,
+        launcherAddress,
+        txHash: hash,
+        params: formValues,
+      });
+    }
+  }, [isSuccess, receipt, hash, launchResult, formValues]);
 
   // Show success view
   if (isSuccess && launchResult) {
@@ -192,7 +286,31 @@ export function LaunchForm() {
 
         {isConnected && (
           <>
-            {/* Token Addresses */}
+            {/* Presets */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <Label>Quick Start Presets</Label>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {LAUNCH_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    onClick={() => applyPreset(preset.id)}
+                    className="flex flex-col items-start rounded-lg border p-3 text-left transition-all hover:border-primary hover:bg-primary/5"
+                  >
+                    <span className="text-sm font-medium">{preset.name}</span>
+                    <span className="text-xs text-muted-foreground mt-1">
+                      {preset.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Token Configuration */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Token Configuration
@@ -206,22 +324,58 @@ export function LaunchForm() {
                   error={errors.token}
                 />
                 <FormField
+                  label="Token Decimals"
+                  value={formValues.tokenDecimals}
+                  onChange={(v) => updateField("tokenDecimals", v)}
+                  type="number"
+                  hint="Usually 18"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
                   label="Payment Token"
                   value={formValues.paymentToken}
                   onChange={(v) => updateField("paymentToken", v)}
                   placeholder="0x... (WETH, USDC, etc.)"
                   error={errors.paymentToken}
                 />
+                <FormField
+                  label="Payment Decimals"
+                  value={formValues.paymentTokenDecimals}
+                  onChange={(v) => updateField("paymentTokenDecimals", v)}
+                  type="number"
+                  hint="6 for USDC, 18 for WETH"
+                />
               </div>
-              <FormField
-                label="Token Amount"
-                value={formValues.tokenAmount}
-                onChange={(v) => updateField("tokenAmount", v)}
-                placeholder="1000000"
-                type="number"
-                error={errors.tokenAmount}
-                hint="Amount of tokens to launch"
-              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                  label="Token Amount"
+                  value={formValues.tokenAmount}
+                  onChange={(v) => updateField("tokenAmount", v)}
+                  placeholder="1000000"
+                  type="number"
+                  error={errors.tokenAmount}
+                  hint="Amount to launch"
+                />
+                <div className="space-y-2">
+                  <Label>Token Source</Label>
+                  <Select
+                    value={formValues.tokenSource}
+                    onValueChange={(v) => updateField("tokenSource", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TOKEN_SOURCE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value.toString()}>
+                          {opt.label} - {opt.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
             <Separator />
@@ -238,6 +392,7 @@ export function LaunchForm() {
                   onChange={(v) => updateField("operator", v)}
                   placeholder="0x..."
                   error={errors.operator}
+                  hint="Controls the launch"
                 />
                 <FormField
                   label="Treasury"
@@ -245,6 +400,7 @@ export function LaunchForm() {
                   onChange={(v) => updateField("treasury", v)}
                   placeholder="0x..."
                   error={errors.treasury}
+                  hint="Receives treasury allocation"
                 />
               </div>
               <FormField
@@ -260,9 +416,12 @@ export function LaunchForm() {
 
             {/* Auction Parameters */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Auction Parameters
-              </h3>
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Auction Parameters
+                </h3>
+              </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 <FormField
                   label="Duration (Days)"
@@ -286,15 +445,34 @@ export function LaunchForm() {
                   hint="1-1000"
                 />
               </div>
-              <FormField
-                label="Reserve Price"
-                value={formValues.reservePrice}
-                onChange={(v) => updateField("reservePrice", v)}
-                placeholder="0.001"
-                type="number"
-                error={errors.reservePrice}
-                hint="Minimum price per token"
-              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                  label="Reserve Price"
+                  value={formValues.reservePrice}
+                  onChange={(v) => updateField("reservePrice", v)}
+                  placeholder="0.001"
+                  type="number"
+                  error={errors.reservePrice}
+                  hint="Min price per token"
+                />
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    Start Time
+                    <span className="text-xs text-muted-foreground">(0 = immediate)</span>
+                  </Label>
+                  <Input
+                    type={formValues.startTime === "0" ? "text" : "datetime-local"}
+                    value={formValues.startTime === "0" ? "0 (Immediate)" : formValues.startTime}
+                    onChange={(e) => updateField("startTime", e.target.value === "0 (Immediate)" ? "0" : e.target.value)}
+                    onFocus={(e) => {
+                      if (formValues.startTime === "0") {
+                        updateField("startTime", "");
+                        e.target.type = "datetime-local";
+                      }
+                    }}
+                  />
+                </div>
+              </div>
             </div>
 
             <Separator />
@@ -358,6 +536,9 @@ export function LaunchForm() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Tick spacing: {formValues.tickSpacing}
+                  </p>
                 </div>
                 <FormField
                   label="Lockup Duration (Days)"
@@ -377,6 +558,37 @@ export function LaunchForm() {
                 hint="Max 30 days"
               />
             </div>
+
+            {/* Advanced Settings Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Settings2 className="h-4 w-4" />
+              Advanced Settings
+              <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
+            </button>
+
+            {showAdvanced && (
+              <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+                <FormField
+                  label="Validation Hook"
+                  value={formValues.validationHook}
+                  onChange={(v) => updateField("validationHook", v)}
+                  placeholder="0x0000...0000 (none)"
+                  error={errors.validationHook}
+                  hint="Permitter contract for validation rules"
+                />
+                <FormField
+                  label="Tick Spacing"
+                  value={formValues.tickSpacing}
+                  onChange={(v) => updateField("tickSpacing", v)}
+                  type="number"
+                  hint="Auto-set based on fee tier"
+                />
+              </div>
+            )}
 
             {/* Error Display */}
             {writeError && (
@@ -405,7 +617,7 @@ export function LaunchForm() {
               ) : (
                 <>
                   <Rocket className="h-5 w-5" />
-                  Launch Token
+                  Create Launch
                 </>
               )}
             </Button>
@@ -475,6 +687,10 @@ function LaunchSuccessView({ result, chainId }: LaunchSuccessViewProps) {
     return `${explorers[chainId] || "https://etherscan.io"}/address/${address}`;
   };
 
+  const tokenSourceLabel = TOKEN_SOURCE_OPTIONS.find(
+    (o) => o.value.toString() === result.params.tokenSource
+  )?.label || result.params.tokenSource;
+
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader className="text-center">
@@ -491,6 +707,12 @@ function LaunchSuccessView({ result, chainId }: LaunchSuccessViewProps) {
         {/* Transaction Info */}
         <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
           <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Launch ID</span>
+            <span className="text-sm font-semibold text-foreground">
+              #{result.launchId.toString()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Transaction Hash</span>
             <a
               href={getExplorerUrl(result.txHash)}
@@ -503,7 +725,7 @@ function LaunchSuccessView({ result, chainId }: LaunchSuccessViewProps) {
             </a>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Launcher Address</span>
+            <span className="text-sm text-muted-foreground">Orchestrator Address</span>
             <a
               href={getAddressUrl(result.launcherAddress)}
               target="_blank"
@@ -527,6 +749,7 @@ function LaunchSuccessView({ result, chainId }: LaunchSuccessViewProps) {
           <div className="grid gap-3 text-sm">
             <SummaryRow label="Token" value={result.params.token} mono />
             <SummaryRow label="Payment Token" value={result.params.paymentToken} mono />
+            <SummaryRow label="Token Source" value={tokenSourceLabel} />
             <SummaryRow label="Operator" value={result.params.operator} mono />
             <SummaryRow label="Token Amount" value={result.params.tokenAmount} />
             <SummaryRow
@@ -535,6 +758,7 @@ function LaunchSuccessView({ result, chainId }: LaunchSuccessViewProps) {
             />
             <SummaryRow label="Pricing Steps" value={result.params.pricingSteps} />
             <SummaryRow label="Reserve Price" value={result.params.reservePrice} />
+            <SummaryRow label="Start Time" value={result.params.startTime === "0" ? "Immediate" : result.params.startTime} />
             <SummaryRow
               label="Liquidity Allocation"
               value={`${result.params.liquidityAllocationPercent}%`}
@@ -547,6 +771,7 @@ function LaunchSuccessView({ result, chainId }: LaunchSuccessViewProps) {
               label="Pool Fee Tier"
               value={POOL_FEE_TIERS.find((t) => t.value.toString() === result.params.poolFeeTier)?.label || result.params.poolFeeTier}
             />
+            <SummaryRow label="Tick Spacing" value={result.params.tickSpacing} />
             <SummaryRow
               label="Lockup Duration"
               value={`${result.params.lockupDurationDays} days`}
@@ -557,6 +782,27 @@ function LaunchSuccessView({ result, chainId }: LaunchSuccessViewProps) {
             />
             <SummaryRow label="Treasury" value={result.params.treasury} mono />
             <SummaryRow label="Position Beneficiary" value={result.params.positionBeneficiary} mono />
+            <SummaryRow
+              label="Validation Hook"
+              value={result.params.validationHook === "0x0000000000000000000000000000000000000000" ? "None" : result.params.validationHook}
+              mono={result.params.validationHook !== "0x0000000000000000000000000000000000000000"}
+            />
+          </div>
+        </div>
+
+        {/* Next Steps */}
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-medium text-blue-800">Next Steps</h4>
+              <ol className="text-sm text-blue-700 mt-2 space-y-1 list-decimal list-inside">
+                <li>Transfer tokens to the orchestrator contract</li>
+                <li>Start the auction</li>
+                <li>Wait for bidders to participate</li>
+                <li>Finalize the auction after duration ends</li>
+              </ol>
+            </div>
           </div>
         </div>
 
@@ -573,7 +819,7 @@ function LaunchSuccessView({ result, chainId }: LaunchSuccessViewProps) {
             className="flex-1"
             onClick={() => window.open(getAddressUrl(result.launcherAddress), "_blank")}
           >
-            View Launcher
+            View Orchestrator
             <ExternalLink className="h-4 w-4" />
           </Button>
         </div>
