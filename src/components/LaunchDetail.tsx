@@ -238,6 +238,7 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
       { ...contractBase, functionName: "isDistributionPermissionless" },
       { ...contractBase, functionName: "isUnlocked" },
       { ...contractBase, functionName: "pendingOperator" },
+      { ...contractBase, functionName: "state" },
     ],
     query: {
       refetchInterval: 15000,
@@ -255,8 +256,10 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
   const isPermissionless = results?.[3]?.result as boolean | undefined;
   const unlocked = results?.[4]?.result as boolean | undefined;
   const pendingOp = results?.[5]?.result as Address | undefined;
+  const directState = results?.[6]?.result as number | undefined;
 
-  const currentState = (launchInfo?.state ?? 0) as LaunchState;
+  // Use direct state() getter as primary (more reliable), fallback to getLaunchInfo struct
+  const currentState = (directState ?? launchInfo?.state ?? 0) as LaunchState;
   const isOperator =
     !!connectedAddress &&
     !!launchInfo?.operator &&
@@ -345,6 +348,14 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
       </CardHeader>
       <CardContent>
         <div className="grid gap-3 text-sm sm:grid-cols-2">
+          <div className="sm:col-span-2 flex items-center justify-between rounded-lg border p-3">
+            <span className="font-medium">State</span>
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${LAUNCH_STATE_COLORS[currentState]}`}
+            >
+              {LAUNCH_STATE_LABELS[currentState]}
+            </span>
+          </div>
           <InfoRow label="Token" value={launchInfo.token} isAddress explorerUrl={explorerUrl} />
           <InfoRow label="Payment Token" value={launchInfo.paymentToken} isAddress explorerUrl={explorerUrl} />
           <InfoRow label="Operator" value={launchInfo.operator} isAddress explorerUrl={explorerUrl} />
@@ -480,10 +491,25 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
   const renderActions = () => {
     const actions: React.ReactElement[] = [];
 
-    // SETUP → Finalize Setup (operator only)
-    if (currentState === LaunchState.SETUP && isOperator) {
+    // FINALIZED → Start Auction
+    if ( connectedAddress) {
       actions.push(
         <ActionButton
+        disabled={!isOperator || currentState !== LaunchState.SETUP}
+          key="start-auction"
+          label="Start Auction"
+          functionName="startAuction"
+          contractAddress={address}
+          onSuccess={handleRefetch}
+        />
+      );
+    }
+
+    // SETUP → Finalize Setup
+    if ( connectedAddress) {
+      actions.push(
+        <ActionButton
+        disabled={!isOperator || currentState !== LaunchState.AUCTION_ACTIVE}
           key="finalize-setup"
           label="Finalize Setup"
           functionName="finalizeSetup"
@@ -493,18 +519,6 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
       );
     }
 
-    // FINALIZED → Start Auction (operator only)
-    if (currentState === LaunchState.FINALIZED && isOperator) {
-      actions.push(
-        <ActionButton
-          key="start-auction"
-          label="Start Auction"
-          functionName="startAuction"
-          contractAddress={address}
-          onSuccess={handleRefetch}
-        />
-      );
-    }
 
     // AUCTION_ENDED → distribution actions
     if (currentState === LaunchState.AUCTION_ENDED) {
