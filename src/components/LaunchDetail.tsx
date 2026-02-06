@@ -196,6 +196,7 @@ function ActionButton({
   functionName,
   contractAddress,
   args,
+  gas,
   disabled,
   variant = "default",
   onSuccess,
@@ -204,6 +205,7 @@ function ActionButton({
   functionName: string;
   contractAddress: Address;
   args?: readonly unknown[];
+  gas?: bigint;
   disabled?: boolean;
   variant?: "default" | "outline" | "destructive";
   onSuccess?: () => void;
@@ -226,6 +228,7 @@ function ActionButton({
       abi: TALLY_LAUNCH_ORCHESTRATOR_ABI,
       functionName: functionName as never,
       ...(args ? { args: args as never } : {}),
+      ...(gas ? { gas } : {}),
     });
   };
 
@@ -1014,6 +1017,7 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
             label="Start Auction"
             functionName="startAuction"
             contractAddress={address}
+            gas={BigInt(15_000_000)}
             onSuccess={handleRefetch}
           />
         </div>
