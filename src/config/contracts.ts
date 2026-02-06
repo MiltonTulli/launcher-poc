@@ -646,6 +646,34 @@ export const TALLY_LAUNCH_ORCHESTRATOR_ABI = [
     outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
+  {
+    type: "function",
+    name: "tokenSource",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8", internalType: "enum TokenSource" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "auctionEndTime",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "distributionDelay",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "distributionTimestamp",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
   // --- View: struct-returning ---
   {
     type: "function",
@@ -829,3 +857,45 @@ export const TALLY_LAUNCH_ORCHESTRATOR_ABI = [
     stateMutability: "nonpayable",
   },
 ] as const;
+
+// ============================================
+// ERC20 MINIMAL ABI (for balance/allowance reads)
+// ============================================
+export const ERC20_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    inputs: [{ name: "account", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "allowance",
+    inputs: [
+      { name: "owner", type: "address", internalType: "address" },
+      { name: "spender", type: "address", internalType: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+] as const;
+
+// ============================================
+// ACCESS CONTROL ABI (for hasRole checks)
+// ============================================
+export const ACCESS_CONTROL_ABI = [
+  {
+    type: "function",
+    name: "hasRole",
+    inputs: [
+      { name: "role", type: "bytes32", internalType: "bytes32" },
+      { name: "account", type: "address", internalType: "address" },
+    ],
+    outputs: [{ name: "", type: "bool", internalType: "bool" }],
+    stateMutability: "view",
+  },
+] as const;
+
+// keccak256("MINTER_ROLE")
+export const MINTER_ROLE = "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6" as const;

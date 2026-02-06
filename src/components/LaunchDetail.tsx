@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Address, formatUnits, isAddress } from "viem";
 import {
   useAccount,
@@ -15,7 +15,11 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   TALLY_LAUNCH_ORCHESTRATOR_ABI,
+  ERC20_ABI,
+  ACCESS_CONTROL_ABI,
+  MINTER_ROLE,
   LaunchState,
+  TokenSource,
   LAUNCH_STATE_LABELS,
   LAUNCH_STATE_COLORS,
 } from "@/config/contracts";
@@ -27,6 +31,7 @@ import {
   RefreshCw,
   ArrowRightLeft,
   Shield,
+  Info,
 } from "lucide-react";
 
 // ============================================
@@ -82,6 +87,14 @@ interface AuctionInfo {
   hasEnded: boolean;
 }
 
+interface PreconditionCheck {
+  id: string;
+  label: string;
+  description: string;
+  met: boolean;
+  loading?: boolean;
+}
+
 // ============================================
 // Explorer URLs
 // ============================================
@@ -128,6 +141,52 @@ function formatDuration(seconds: bigint): string {
 }
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const BASIS_POINTS = BigInt(10000);
+
+// ============================================
+// Precondition Checklist Component
+// ============================================
+function PreconditionChecklist({
+  checks,
+  action,
+}: {
+  checks: PreconditionCheck[];
+  action: string;
+}) {
+  if (checks.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border p-3 mb-2 bg-muted/30">
+      <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+        <Info className="h-3 w-3" />
+        Requirements for {action}
+      </p>
+      <ul className="space-y-1.5">
+        {checks.map((check) => (
+          <li key={check.id} className="flex items-start gap-2 text-xs">
+            {check.loading ? (
+              <Spinner size="sm" className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            ) : check.met ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />
+            ) : (
+              <XCircle className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />
+            )}
+            <div>
+              <span className={check.met ? "text-foreground" : "text-red-600 font-medium"}>
+                {check.label}
+              </span>
+              {check.description && (
+                <p className="text-muted-foreground text-[11px] leading-tight mt-0.5">
+                  {check.description}
+                </p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 // ============================================
 // Action Button Component
@@ -155,7 +214,6 @@ function ActionButton({
   useEffect(() => {
     if (isSuccess && onSuccess) {
       onSuccess();
-      // Reset the mutation state after success so the button returns to normal
       const timer = setTimeout(() => reset(), 2000);
       return () => clearTimeout(timer);
     }
@@ -167,7 +225,7 @@ function ActionButton({
       address: contractAddress,
       abi: TALLY_LAUNCH_ORCHESTRATOR_ABI,
       functionName: functionName as never,
-      args: args as never,
+      ...(args ? { args: args as never } : {}),
     });
   };
 
@@ -194,12 +252,19 @@ function ActionButton({
         )}
       </Button>
       {error && (
-        <p className="text-xs text-red-600 truncate" title={error.message}>
+        <p className="text-xs text-red-600" title={error.message}>
           {error.message.includes("User rejected")
             ? "Transaction rejected"
-            : error.message.length > 80
-              ? error.message.slice(0, 80) + "..."
-              : error.message}
+            : (() => {
+                const revertMatch = error.message.match(/reason:\s*(.+?)(?:\n|$)/);
+                const solidityMatch = error.message.match(/reverted with custom error '([^']+)'/);
+                const shortMessage = error.message.match(/Details:\s*(.+?)(?:\n|$)/);
+                const reason = revertMatch?.[1] || solidityMatch?.[1] || shortMessage?.[1];
+                if (reason) return reason.trim();
+                return error.message.length > 120
+                  ? error.message.slice(0, 120) + "..."
+                  : error.message;
+              })()}
         </p>
       )}
     </div>
@@ -222,7 +287,9 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Multicall: fetch all data in one batch
+  // ============================================
+  // Primary Multicall: orchestrator data
+  // ============================================
   const contractBase = { address, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI } as const;
 
   const {
@@ -232,13 +299,18 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
     refetch,
   } = useReadContracts({
     contracts: [
-      { ...contractBase, functionName: "getLaunchInfo" },
-      { ...contractBase, functionName: "getDistributionState" },
-      { ...contractBase, functionName: "getAuctionInfo" },
-      { ...contractBase, functionName: "isDistributionPermissionless" },
-      { ...contractBase, functionName: "isUnlocked" },
-      { ...contractBase, functionName: "pendingOperator" },
-      { ...contractBase, functionName: "state" },
+      { ...contractBase, functionName: "getLaunchInfo" },               // [0]
+      { ...contractBase, functionName: "getDistributionState" },        // [1]
+      { ...contractBase, functionName: "getAuctionInfo" },              // [2]
+      { ...contractBase, functionName: "isDistributionPermissionless" },// [3]
+      { ...contractBase, functionName: "isUnlocked" },                  // [4]
+      { ...contractBase, functionName: "pendingOperator" },             // [5]
+      { ...contractBase, functionName: "state" },                       // [6]
+      { ...contractBase, functionName: "tokenSource" },                 // [7]
+      { ...contractBase, functionName: "tokenAmount" },                 // [8]
+      { ...contractBase, functionName: "auctionEndTime" },              // [9]
+      { ...contractBase, functionName: "distributionDelay" },           // [10]
+      { ...contractBase, functionName: "distributionTimestamp" },        // [11]
     ],
     query: {
       refetchInterval: 15000,
@@ -249,7 +321,7 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
     refetch();
   }, [refetch]);
 
-  // Parse results
+  // Parse primary results
   const launchInfo = results?.[0]?.result as LaunchInfo | undefined;
   const distInfo = results?.[1]?.result as DistributionInfo | undefined;
   const auctionInfo = results?.[2]?.result as AuctionInfo | undefined;
@@ -257,8 +329,13 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
   const unlocked = results?.[4]?.result as boolean | undefined;
   const pendingOp = results?.[5]?.result as Address | undefined;
   const directState = results?.[6]?.result as number | undefined;
+  const tokenSourceValue = results?.[7]?.result as number | undefined;
+  const tokenAmountValue = results?.[8]?.result as bigint | undefined;
+  const auctionEndTimeValue = results?.[9]?.result as bigint | undefined;
+  const distributionDelayValue = results?.[10]?.result as bigint | undefined;
+  const distributionTimestampValue = results?.[11]?.result as bigint | undefined;
 
-  // Use direct state() getter as primary (more reliable), fallback to getLaunchInfo struct
+  // Derived values
   const currentState = (directState ?? launchInfo?.state ?? 0) as LaunchState;
   const isOperator =
     !!connectedAddress &&
@@ -270,7 +347,330 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
     pendingOp !== ZERO_ADDRESS &&
     connectedAddress.toLowerCase() === pendingOp.toLowerCase();
 
+  // ============================================
+  // Secondary Multicall: token balance/allowance/role
+  // ============================================
+  const tokenAddress = launchInfo?.token;
+  const operatorAddress = launchInfo?.operator;
+
+  const tokenContracts = useMemo(() => {
+    if (!tokenAddress || !operatorAddress) return [];
+    const contracts: {
+      address: Address;
+      abi: typeof ERC20_ABI | typeof ACCESS_CONTROL_ABI;
+      functionName: string;
+      args: readonly unknown[];
+    }[] = [
+      // [0] Token balance of orchestrator
+      {
+        address: tokenAddress,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [address],
+      },
+      // [1] Token allowance from operator to orchestrator
+      {
+        address: tokenAddress,
+        abi: ERC20_ABI,
+        functionName: "allowance",
+        args: [operatorAddress, address],
+      },
+      // [2] hasRole(MINTER_ROLE, orchestrator) — may fail if token doesn't implement AccessControl
+      {
+        address: tokenAddress,
+        abi: ACCESS_CONTROL_ABI,
+        functionName: "hasRole",
+        args: [MINTER_ROLE, address],
+      },
+    ];
+    return contracts;
+  }, [tokenAddress, operatorAddress, address]);
+
+  const { data: tokenResults, isLoading: tokenLoading } = useReadContracts({
+    contracts: tokenContracts as never,
+    query: {
+      enabled: tokenContracts.length > 0,
+      refetchInterval: 15000,
+    },
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tr = tokenResults as any[] | undefined;
+  const orchestratorTokenBalance = tr?.[0]?.result as bigint | undefined;
+  const operatorTokenAllowance = tr?.[1]?.result as bigint | undefined;
+  const hasMinterRole = tr?.[2]?.status === "success"
+    ? (tr[2].result as boolean)
+    : undefined;
+
+  // ============================================
+  // Precondition computation
+  // ============================================
+  const preconditionsByAction = useMemo(() => {
+    const map: Record<string, PreconditionCheck[]> = {};
+
+    // --- finalizeSetup ---
+    if (currentState === LaunchState.SETUP && connectedAddress) {
+      const checks: PreconditionCheck[] = [
+        {
+          id: "is-operator",
+          label: "Connected as operator",
+          description: launchInfo?.operator
+            ? `Operator: ${shortenAddress(launchInfo.operator)}`
+            : "",
+          met: isOperator,
+        },
+      ];
+
+      if (tokenSourceValue === TokenSource.TRANSFER) {
+        checks.push({
+          id: "token-balance",
+          label: "Tokens transferred to orchestrator",
+          description:
+            tokenAmountValue !== undefined && orchestratorTokenBalance !== undefined
+              ? `Balance: ${formatUnits(orchestratorTokenBalance, 18)} / Required: ${formatUnits(tokenAmountValue, 18)}`
+              : "Checking balance...",
+          met: !!(
+            orchestratorTokenBalance !== undefined &&
+            tokenAmountValue !== undefined &&
+            orchestratorTokenBalance >= tokenAmountValue
+          ),
+          loading: tokenLoading,
+        });
+      } else if (tokenSourceValue === TokenSource.PERMIT2) {
+        // PERMIT2 / TRANSFER_FROM
+        checks.push({
+          id: "token-allowance",
+          label: "Operator has approved tokens",
+          description:
+            tokenAmountValue !== undefined && operatorTokenAllowance !== undefined
+              ? `Allowance: ${formatUnits(operatorTokenAllowance, 18)} / Required: ${formatUnits(tokenAmountValue, 18)}`
+              : "Checking allowance...",
+          met: !!(
+            operatorTokenAllowance !== undefined &&
+            tokenAmountValue !== undefined &&
+            operatorTokenAllowance >= tokenAmountValue
+          ),
+          loading: tokenLoading,
+        });
+      } else if (tokenSourceValue === TokenSource.MINT) {
+        checks.push({
+          id: "minter-role",
+          label: "Orchestrator has minter role",
+          description:
+            hasMinterRole !== undefined
+              ? hasMinterRole
+                ? "MINTER_ROLE granted"
+                : "MINTER_ROLE not granted on token"
+              : "Checking role...",
+          met: hasMinterRole === true,
+          loading: hasMinterRole === undefined && tokenLoading,
+        });
+      }
+
+      map["finalizeSetup"] = checks;
+    }
+
+    // --- startAuction ---
+    if (currentState === LaunchState.FINALIZED && connectedAddress) {
+      const startTimeVal = launchInfo?.startTime ? Number(launchInfo.startTime) : 0;
+      const auctionSupply =
+        tokenAmountValue && launchInfo
+          ? tokenAmountValue - (tokenAmountValue * launchInfo.liquidityAllocation) / BASIS_POINTS
+          : BigInt(0);
+
+      const checks: PreconditionCheck[] = [
+        {
+          id: "is-operator",
+          label: "Connected as operator",
+          description: launchInfo?.operator
+            ? `Operator: ${shortenAddress(launchInfo.operator)}`
+            : "",
+          met: isOperator,
+        },
+      ];
+
+      if (startTimeVal > 0) {
+        checks.push({
+          id: "start-time",
+          label: "Scheduled start time reached",
+          description:
+            now >= startTimeVal
+              ? `Start time passed (${new Date(startTimeVal * 1000).toLocaleString()})`
+              : `Starts in ${formatCountdown(startTimeVal - now)} (${new Date(startTimeVal * 1000).toLocaleString()})`,
+          met: now >= startTimeVal,
+        });
+      }
+
+      checks.push({
+        id: "auction-supply",
+        label: "Auction supply is positive",
+        description:
+          auctionSupply > BigInt(0)
+            ? `${formatUnits(auctionSupply, 18)} tokens for auction`
+            : "No tokens available for auction (100% allocated to liquidity)",
+        met: auctionSupply > BigInt(0),
+      });
+
+      map["startAuction"] = checks;
+    }
+
+    // --- distribution actions ---
+    if (
+      currentState === LaunchState.AUCTION_ACTIVE ||
+      currentState === LaunchState.AUCTION_ENDED
+    ) {
+      const endTime = auctionEndTimeValue ? Number(auctionEndTimeValue) : 0;
+      const delay = distributionDelayValue ? Number(distributionDelayValue) : 0;
+      const auctionEnded = endTime > 0 && now >= endTime;
+      const permissionlessTime = endTime + delay;
+      const isPermissionlessNow = delay === 0 || now >= permissionlessTime;
+
+      // distributeLiquidity / distributeAll
+      const distChecks: PreconditionCheck[] = [
+        {
+          id: "auction-ended",
+          label: "Auction has ended",
+          description:
+            endTime > 0
+              ? auctionEnded
+                ? `Ended at ${new Date(endTime * 1000).toLocaleString()}`
+                : `Ends in ${formatCountdown(endTime - now)}`
+              : "Auction end time not set",
+          met: auctionEnded,
+        },
+      ];
+
+      if (!isOperator && connectedAddress) {
+        distChecks.push({
+          id: "distribution-delay",
+          label: "Distribution delay passed",
+          description:
+            delay === 0
+              ? "No delay configured"
+              : isPermissionlessNow
+                ? "Delay passed — anyone can distribute"
+                : `Permissionless in ${formatCountdown(permissionlessTime - now)}`,
+          met: isPermissionlessNow,
+        });
+      }
+
+      distChecks.push({
+        id: "has-bids",
+        label: "Auction received bids",
+        description: auctionInfo
+          ? `Total raised: ${formatUnits(auctionInfo.totalRaised, 18)}`
+          : "Loading auction info...",
+        met: !!(auctionInfo && auctionInfo.totalRaised > BigInt(0)),
+      });
+
+      map["distributeLiquidity"] = distChecks;
+      map["distributeAll"] = distChecks;
+
+      // distributeTreasury
+      map["distributeTreasury"] = [
+        ...distChecks,
+        {
+          id: "liquidity-complete",
+          label: "Liquidity distributed first",
+          description: distInfo?.liquidityComplete
+            ? "Liquidity distribution complete"
+            : "Distribute liquidity before treasury",
+          met: distInfo?.liquidityComplete === true,
+        },
+      ];
+
+      // finalizeFailedAuction
+      const failedChecks: PreconditionCheck[] = [
+        {
+          id: "auction-ended",
+          label: "Auction has ended",
+          description:
+            endTime > 0
+              ? auctionEnded
+                ? "Auction ended"
+                : `Ends in ${formatCountdown(endTime - now)}`
+              : "Auction end time not set",
+          met: auctionEnded,
+        },
+        {
+          id: "zero-bids",
+          label: "Auction has zero bids",
+          description: auctionInfo
+            ? auctionInfo.totalRaised === BigInt(0)
+              ? "No bids received"
+              : `Auction has bids (raised: ${formatUnits(auctionInfo.totalRaised, 18)})`
+            : "Loading auction info...",
+          met: !!(auctionInfo && auctionInfo.totalRaised === BigInt(0)),
+        },
+      ];
+
+      if (!isOperator && connectedAddress) {
+        failedChecks.splice(1, 0, {
+          id: "distribution-delay",
+          label: "Distribution delay passed",
+          description:
+            delay === 0
+              ? "No delay configured"
+              : isPermissionlessNow
+                ? "Delay passed"
+                : `Wait ${formatCountdown(permissionlessTime - now)}`,
+          met: isPermissionlessNow,
+        });
+      }
+
+      map["finalizeFailedAuction"] = failedChecks;
+    }
+
+    // --- withdrawPosition ---
+    if (currentState === LaunchState.LOCKED && connectedAddress) {
+      const distTs = distributionTimestampValue ? Number(distributionTimestampValue) : 0;
+      const lockDur = launchInfo?.lockupDuration ? Number(launchInfo.lockupDuration) : 0;
+      const unlockTime = distTs + lockDur;
+
+      map["withdrawPosition"] = [
+        {
+          id: "is-operator",
+          label: "Connected as operator",
+          description: "",
+          met: isOperator,
+        },
+        {
+          id: "lockup-expired",
+          label: "Lockup period expired",
+          description:
+            unlockTime > 0
+              ? now >= unlockTime
+                ? "Lockup expired — position can be withdrawn"
+                : `Unlocks in ${formatCountdown(unlockTime - now)}`
+              : "No lockup configured",
+          met: unlockTime === 0 || now >= unlockTime,
+        },
+      ];
+    }
+
+    return map;
+  }, [
+    currentState,
+    connectedAddress,
+    isOperator,
+    launchInfo,
+    tokenSourceValue,
+    tokenAmountValue,
+    orchestratorTokenBalance,
+    operatorTokenAllowance,
+    hasMinterRole,
+    tokenLoading,
+    auctionEndTimeValue,
+    distributionDelayValue,
+    distributionTimestampValue,
+    auctionInfo,
+    distInfo,
+    now,
+  ]);
+
+  // ============================================
   // Loading state
+  // ============================================
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -289,7 +689,8 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
         </div>
         <h2 className="text-xl font-semibold mb-2">Failed to load launch</h2>
         <p className="text-sm text-muted-foreground mb-4 max-w-sm text-center">
-          Could not read data from the orchestrator at this address. It may not be a valid orchestrator contract.
+          Could not read data from the orchestrator at this address. It may not be a valid
+          orchestrator contract.
         </p>
         <Button variant="outline" onClick={handleRefetch}>
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -357,20 +758,63 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
             </span>
           </div>
           <InfoRow label="Token" value={launchInfo.token} isAddress explorerUrl={explorerUrl} />
-          <InfoRow label="Payment Token" value={launchInfo.paymentToken} isAddress explorerUrl={explorerUrl} />
-          <InfoRow label="Operator" value={launchInfo.operator} isAddress explorerUrl={explorerUrl} />
-          <InfoRow label="Treasury" value={launchInfo.treasury} isAddress explorerUrl={explorerUrl} />
-          <InfoRow label="Beneficiary" value={launchInfo.positionBeneficiary} isAddress explorerUrl={explorerUrl} />
-          <InfoRow label="Launcher" value={launchInfo.launcher} isAddress explorerUrl={explorerUrl} />
-          <InfoRow label="Liquidity Allocation" value={formatBps(launchInfo.liquidityAllocation)} />
-          <InfoRow label="Treasury Allocation" value={formatBps(launchInfo.treasuryAllocation)} />
-          <InfoRow label="Pool Fee Tier" value={`${(launchInfo.poolFeeTier / 10000).toFixed(2)}%`} />
+          <InfoRow
+            label="Payment Token"
+            value={launchInfo.paymentToken}
+            isAddress
+            explorerUrl={explorerUrl}
+          />
+          <InfoRow
+            label="Operator"
+            value={launchInfo.operator}
+            isAddress
+            explorerUrl={explorerUrl}
+          />
+          <InfoRow
+            label="Treasury"
+            value={launchInfo.treasury}
+            isAddress
+            explorerUrl={explorerUrl}
+          />
+          <InfoRow
+            label="Beneficiary"
+            value={launchInfo.positionBeneficiary}
+            isAddress
+            explorerUrl={explorerUrl}
+          />
+          <InfoRow
+            label="Launcher"
+            value={launchInfo.launcher}
+            isAddress
+            explorerUrl={explorerUrl}
+          />
+          <InfoRow
+            label="Liquidity Allocation"
+            value={formatBps(launchInfo.liquidityAllocation)}
+          />
+          <InfoRow
+            label="Treasury Allocation"
+            value={formatBps(launchInfo.treasuryAllocation)}
+          />
+          <InfoRow
+            label="Pool Fee Tier"
+            value={`${(launchInfo.poolFeeTier / 10000).toFixed(2)}%`}
+          />
           <InfoRow label="Tick Spacing" value={launchInfo.tickSpacing.toString()} />
-          <InfoRow label="Auction Duration" value={formatDuration(launchInfo.auctionDuration)} />
+          <InfoRow
+            label="Auction Duration"
+            value={formatDuration(launchInfo.auctionDuration)}
+          />
           <InfoRow label="Pricing Steps" value={launchInfo.pricingSteps.toString()} />
           <InfoRow label="Reserve Price" value={formatUnits(launchInfo.reservePrice, 18)} />
-          <InfoRow label="Lockup Duration" value={formatDuration(launchInfo.lockupDuration)} />
-          <InfoRow label="Platform Fee on LP" value={formatBps(launchInfo.platformFeeOnLPFees)} />
+          <InfoRow
+            label="Lockup Duration"
+            value={formatDuration(launchInfo.lockupDuration)}
+          />
+          <InfoRow
+            label="Platform Fee on LP"
+            value={formatBps(launchInfo.platformFeeOnLPFees)}
+          />
           {launchInfo.unlockTime > BigInt(0) && (
             <InfoRow
               label="Unlock Time"
@@ -409,14 +853,41 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
             {auctionInfo.isActive && (
               <div className="sm:col-span-2 rounded-lg bg-primary/5 p-3 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Time Remaining</p>
-                <p className="text-2xl font-bold font-mono">{formatCountdown(timeRemaining)}</p>
+                <p className="text-2xl font-bold font-mono">
+                  {formatCountdown(timeRemaining)}
+                </p>
               </div>
             )}
-            <InfoRow label="CCA Contract" value={auctionInfo.cca} isAddress explorerUrl={explorerUrl} />
-            <InfoRow label="Start Time" value={Number(auctionInfo.startTime) > 0 ? new Date(Number(auctionInfo.startTime) * 1000).toLocaleString() : "Not started"} />
-            <InfoRow label="End Time" value={Number(auctionInfo.endTime) > 0 ? new Date(Number(auctionInfo.endTime) * 1000).toLocaleString() : "N/A"} />
-            <InfoRow label="Current Price" value={formatUnits(auctionInfo.currentPrice, 18)} />
-            <InfoRow label="Reserve Price" value={formatUnits(auctionInfo.reservePrice, 18)} />
+            <InfoRow
+              label="CCA Contract"
+              value={auctionInfo.cca}
+              isAddress
+              explorerUrl={explorerUrl}
+            />
+            <InfoRow
+              label="Start Time"
+              value={
+                Number(auctionInfo.startTime) > 0
+                  ? new Date(Number(auctionInfo.startTime) * 1000).toLocaleString()
+                  : "Not started"
+              }
+            />
+            <InfoRow
+              label="End Time"
+              value={
+                Number(auctionInfo.endTime) > 0
+                  ? new Date(Number(auctionInfo.endTime) * 1000).toLocaleString()
+                  : "N/A"
+              }
+            />
+            <InfoRow
+              label="Current Price"
+              value={formatUnits(auctionInfo.currentPrice, 18)}
+            />
+            <InfoRow
+              label="Reserve Price"
+              value={formatUnits(auctionInfo.reservePrice, 18)}
+            />
             <InfoRow label="Tokens Sold" value={formatUnits(auctionInfo.tokensSold, 18)} />
             <InfoRow label="Total Raised" value={formatUnits(auctionInfo.totalRaised, 18)} />
             <InfoRow label="Has Ended" value={auctionInfo.hasEnded ? "Yes" : "No"} />
@@ -445,7 +916,10 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
             <InfoRow label="Total Raised" value={formatUnits(distInfo.totalRaised, 18)} />
             <InfoRow label="Tokens Sold" value={formatUnits(distInfo.tokensSold, 18)} />
             <InfoRow label="Treasury Paid" value={formatUnits(distInfo.treasuryPaid, 18)} />
-            <InfoRow label="Liquidity Created" value={formatUnits(distInfo.liquidityCreated, 18)} />
+            <InfoRow
+              label="Liquidity Created"
+              value={formatUnits(distInfo.liquidityCreated, 18)}
+            />
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Liquidity Complete</span>
               {distInfo.liquidityComplete ? (
@@ -463,21 +937,34 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
               )}
             </div>
             {distInfo.lockupContract !== ZERO_ADDRESS && (
-              <InfoRow label="Lockup Contract" value={distInfo.lockupContract} isAddress explorerUrl={explorerUrl} />
+              <InfoRow
+                label="Lockup Contract"
+                value={distInfo.lockupContract}
+                isAddress
+                explorerUrl={explorerUrl}
+              />
             )}
             {distInfo.positionTokenId > BigInt(0) && (
-              <InfoRow label="Position Token ID" value={distInfo.positionTokenId.toString()} />
+              <InfoRow
+                label="Position Token ID"
+                value={distInfo.positionTokenId.toString()}
+              />
             )}
             {unlockTime > 0 && currentState === LaunchState.LOCKED && (
               <div className="sm:col-span-2 rounded-lg bg-orange-50 p-3 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Unlock In</p>
                 <p className="text-xl font-bold font-mono">
-                  {unlockRemaining > 0 ? formatCountdown(unlockRemaining) : "Unlockable now"}
+                  {unlockRemaining > 0
+                    ? formatCountdown(unlockRemaining)
+                    : "Unlockable now"}
                 </p>
               </div>
             )}
             {isPermissionless !== undefined && (
-              <InfoRow label="Permissionless Distribution" value={isPermissionless ? "Yes" : "No"} />
+              <InfoRow
+                label="Permissionless Distribution"
+                value={isPermissionless ? "Yes" : "No"}
+              />
             )}
           </div>
         </CardContent>
@@ -489,77 +976,116 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
   // Section E: Actions Panel
   // ============================================
   const renderActions = () => {
-    const actions: React.ReactElement[] = [];
-
-    // FINALIZED → Start Auction
-    if ( connectedAddress) {
-      actions.push(
-        <ActionButton
-        disabled={!isOperator || currentState !== LaunchState.FINALIZED}
-          key="start-auction"
-          label="Start Auction"
-          functionName="startAuction"
-          contractAddress={address}
-          onSuccess={handleRefetch}
-        />
-      );
-    }
+    const sections: React.ReactElement[] = [];
 
     // SETUP → Finalize Setup
-    if ( connectedAddress) {
-      actions.push(
-        <ActionButton
-        disabled={!isOperator || currentState !== LaunchState.SETUP}
-          key="finalize-setup"
-          label="Finalize Setup"
-          functionName="finalizeSetup"
-          contractAddress={address}
-          onSuccess={handleRefetch}
-        />
+    if (connectedAddress && currentState === LaunchState.SETUP) {
+      sections.push(
+        <div key="finalize-setup" className="space-y-2">
+          {preconditionsByAction["finalizeSetup"] && (
+            <PreconditionChecklist
+              checks={preconditionsByAction["finalizeSetup"]}
+              action="Finalize Setup"
+            />
+          )}
+          <ActionButton
+            disabled={!isOperator}
+            label="Finalize Setup"
+            functionName="finalizeSetup"
+            contractAddress={address}
+            onSuccess={handleRefetch}
+          />
+        </div>
       );
     }
 
+    // FINALIZED → Start Auction
+    if (connectedAddress && currentState === LaunchState.FINALIZED) {
+      sections.push(
+        <div key="start-auction" className="space-y-2">
+          {preconditionsByAction["startAuction"] && (
+            <PreconditionChecklist
+              checks={preconditionsByAction["startAuction"]}
+              action="Start Auction"
+            />
+          )}
+          <ActionButton
+            disabled={!isOperator}
+            label="Start Auction"
+            functionName="startAuction"
+            contractAddress={address}
+            onSuccess={handleRefetch}
+          />
+        </div>
+      );
+    }
 
     // AUCTION_ENDED → distribution actions
     if (currentState === LaunchState.AUCTION_ENDED) {
       const canAct = isOperator || isPermissionless;
+
       if (canAct) {
-        actions.push(
-          <ActionButton
-            key="distribute-all"
-            label="Distribute All"
-            functionName="distributeAll"
-            contractAddress={address}
-            onSuccess={handleRefetch}
-          />,
-          <ActionButton
-            key="distribute-liquidity"
-            label="Distribute Liquidity"
-            functionName="distributeLiquidity"
-            contractAddress={address}
-            variant="outline"
-            onSuccess={handleRefetch}
-          />,
-          <ActionButton
-            key="distribute-treasury"
-            label="Distribute Treasury"
-            functionName="distributeTreasury"
-            contractAddress={address}
-            variant="outline"
-            onSuccess={handleRefetch}
-          />
+        sections.push(
+          <div key="distribute-group" className="space-y-3">
+            {preconditionsByAction["distributeAll"] && (
+              <PreconditionChecklist
+                checks={preconditionsByAction["distributeAll"]}
+                action="Distribution"
+              />
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ActionButton
+                label="Distribute All"
+                functionName="distributeAll"
+                contractAddress={address}
+                onSuccess={handleRefetch}
+              />
+              <ActionButton
+                label="Distribute Liquidity"
+                functionName="distributeLiquidity"
+                contractAddress={address}
+                variant="outline"
+                onSuccess={handleRefetch}
+              />
+            </div>
+            {preconditionsByAction["distributeTreasury"] && (
+              <PreconditionChecklist
+                checks={[
+                  preconditionsByAction["distributeTreasury"].find(
+                    (c) => c.id === "liquidity-complete"
+                  )!,
+                ].filter(Boolean)}
+                action="Distribute Treasury"
+              />
+            )}
+            <ActionButton
+              label="Distribute Treasury"
+              functionName="distributeTreasury"
+              contractAddress={address}
+              variant="outline"
+              onSuccess={handleRefetch}
+            />
+          </div>
         );
       }
-      // Finalize failed auction (anyone can call)
-      actions.push(
-        <ActionButton
-          key="finalize-failed"
-          label="Finalize Failed Auction"
-          functionName="finalizeFailedAuction"
-          contractAddress={address}
-          variant="destructive"
-          onSuccess={handleRefetch}
-        />
+
+      // Finalize failed auction
+      sections.push(
+        <div key="finalize-failed" className="space-y-2">
+          {preconditionsByAction["finalizeFailedAuction"] && (
+            <PreconditionChecklist
+              checks={preconditionsByAction["finalizeFailedAuction"]}
+              action="Finalize Failed Auction"
+            />
+          )}
+          <ActionButton
+            label="Finalize Failed Auction"
+            functionName="finalizeFailedAuction"
+            contractAddress={address}
+            variant="destructive"
+            onSuccess={handleRefetch}
+          />
+        </div>
       );
     }
 
@@ -570,39 +1096,48 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
       currentState === LaunchState.UNLOCKED
     ) {
       if (isOperator) {
-        actions.push(
-          <ActionButton
-            key="sweep-token"
-            label="Sweep Token"
-            functionName="sweepToken"
-            contractAddress={address}
-            variant="outline"
-            onSuccess={handleRefetch}
-          />,
-          <ActionButton
-            key="sweep-payment"
-            label="Sweep Payment Token"
-            functionName="sweepPaymentToken"
-            contractAddress={address}
-            variant="outline"
-            onSuccess={handleRefetch}
-          />
+        sections.push(
+          <div key="sweep-group" className="grid gap-3 sm:grid-cols-2">
+            <ActionButton
+              label="Sweep Token"
+              functionName="sweepToken"
+              contractAddress={address}
+              variant="outline"
+              onSuccess={handleRefetch}
+            />
+            <ActionButton
+              label="Sweep Payment Token"
+              functionName="sweepPaymentToken"
+              contractAddress={address}
+              variant="outline"
+              onSuccess={handleRefetch}
+            />
+          </div>
         );
       }
-      if (currentState === LaunchState.LOCKED && isOperator && unlocked) {
-        actions.push(
-          <ActionButton
-            key="withdraw-position"
-            label="Withdraw Position"
-            functionName="withdrawPosition"
-            contractAddress={address}
-            onSuccess={handleRefetch}
-          />
+      if (currentState === LaunchState.LOCKED && connectedAddress) {
+        sections.push(
+          <div key="withdraw-position" className="space-y-2">
+            {preconditionsByAction["withdrawPosition"] && (
+              <PreconditionChecklist
+                checks={preconditionsByAction["withdrawPosition"]}
+                action="Withdraw Position"
+              />
+            )}
+            <ActionButton
+              disabled={!isOperator}
+              label="Withdraw Position"
+              functionName="withdrawPosition"
+              contractAddress={address}
+              onSuccess={handleRefetch}
+            />
+          </div>
         );
       }
     }
 
-    if (actions.length === 0) {
+    // Empty state messages
+    if (sections.length === 0) {
       if (currentState === LaunchState.AUCTION_ACTIVE) {
         return (
           <Card>
@@ -671,7 +1206,7 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
           <CardTitle className="text-base">Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2">{actions}</div>
+          <div className="space-y-4">{sections}</div>
         </CardContent>
       </Card>
     );
@@ -692,7 +1227,6 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Transfer operator (only current operator) */}
           {isOperator && (
             <div className="space-y-2">
               <label className="text-sm font-medium">Transfer Operator Role</label>
@@ -719,15 +1253,15 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
             </div>
           )}
 
-          {/* Pending operator display */}
           {pendingOp && pendingOp !== ZERO_ADDRESS && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-              <p className="text-sm font-medium text-amber-800 mb-1">Pending Operator Transfer</p>
+              <p className="text-sm font-medium text-amber-800 mb-1">
+                Pending Operator Transfer
+              </p>
               <p className="text-xs font-mono text-amber-700">{pendingOp}</p>
             </div>
           )}
 
-          {/* Accept operator (only pending operator) */}
           {isPendingOperator && (
             <ActionButton
               label="Accept Operator Role"
