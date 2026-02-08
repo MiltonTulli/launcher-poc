@@ -8,9 +8,9 @@ import Link from "next/link";
 export default function DraftPage({
   params,
 }: {
-  params: Promise<{ cid: string }>;
+  params: Promise<{ id: string }>;
 }) {
-  const { cid } = use(params);
+  const { id } = use(params);
 
   return (
     <main className="min-h-screen flex flex-col">
@@ -35,7 +35,7 @@ export default function DraftPage({
 
       <div className="flex-1">
         <div className="container mx-auto px-4 py-8 sm:py-12 max-w-4xl">
-          <DraftView cid={cid} />
+          <DraftView id={id} />
         </div>
       </div>
 

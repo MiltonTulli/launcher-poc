@@ -36,7 +36,7 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { saveDraft } from "@/lib/ipfs";
+import { createDraft, updateDraft } from "@/lib/drafts";
 
 interface LaunchResult {
   launchId: bigint;
@@ -50,9 +50,13 @@ interface LaunchFormProps {
   initialValues?: Partial<LaunchFormValues>;
   /** "create" = normal mode, "draft" = launched from a draft page */
   mode?: "create" | "draft";
+  /** When editing an existing draft, the server-side draft ID */
+  draftId?: string;
+  /** Called after a draft is saved/updated (e.g. to refresh parent view) */
+  onDraftSaved?: () => void;
 }
 
-export function LaunchForm({ initialValues, mode = "create" }: LaunchFormProps) {
+export function LaunchForm({ initialValues, mode = "create", draftId, onDraftSaved }: LaunchFormProps) {
   const { address } = useAccount();
   const chainId = useChainId();
   const router = useRouter();
@@ -226,25 +230,37 @@ export function LaunchForm({ initialValues, mode = "create" }: LaunchFormProps) 
   }, [formValues, validateForm, contractAddress, writeContract]);
 
   const handleSaveDraft = useCallback(async () => {
+    if (!address) return;
     setDraftError(null);
     setIsSavingDraft(true);
     try {
-      const [cid] = await Promise.all([
-        saveDraft({
-          formValues: formValues as unknown as Record<string, string>,
-          chainId,
-          createdAt: Date.now(),
-          creator: address ?? undefined,
-        }),
-        // Minimum visible delay so the user sees the saving state
-        new Promise((r) => setTimeout(r, 800)),
-      ]);
-      router.push(`/draft/${cid}`);
+      const payload = {
+        owner: address,
+        formValues: formValues as unknown as Record<string, string>,
+        chainId,
+      };
+
+      if (mode === "draft" && draftId) {
+        // Update existing draft
+        await Promise.all([
+          updateDraft(draftId, payload),
+          new Promise((r) => setTimeout(r, 600)),
+        ]);
+        setIsSavingDraft(false);
+        onDraftSaved?.();
+      } else {
+        // Create new draft
+        const [draft] = await Promise.all([
+          createDraft(payload),
+          new Promise((r) => setTimeout(r, 600)),
+        ]);
+        router.push(`/draft/${draft.id}`);
+      }
     } catch (err) {
       setDraftError(err instanceof Error ? err.message : "Failed to save draft");
       setIsSavingDraft(false);
     }
-  }, [formValues, chainId, address, router]);
+  }, [formValues, chainId, address, router, mode, draftId, onDraftSaved]);
 
   // Update launch result when transaction succeeds
   useEffect(() => {
@@ -650,27 +666,25 @@ export function LaunchForm({ initialValues, mode = "create" }: LaunchFormProps) 
                 </>
               ) : (
                 <div className="flex gap-3">
-                  {mode !== "draft" && (
-                    <Button
-                      onClick={handleSaveDraft}
-                      disabled={isSavingDraft || isPending || isConfirming}
-                      variant="outline"
-                      className="h-12 text-base"
-                      size="lg"
-                    >
-                      {isSavingDraft ? (
-                        <>
-                          <Spinner size="sm" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-5 w-5" />
-                          Save Draft
-                        </>
-                      )}
-                    </Button>
-                  )}
+                  <Button
+                    onClick={handleSaveDraft}
+                    disabled={isSavingDraft || isPending || isConfirming}
+                    variant="outline"
+                    className="h-12 text-base"
+                    size="lg"
+                  >
+                    {isSavingDraft ? (
+                      <>
+                        <Spinner size="sm" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-5 w-5" />
+                        {mode === "draft" ? "Save Changes" : "Save Draft"}
+                      </>
+                    )}
+                  </Button>
                   <Button
                     onClick={handleSubmit}
                     disabled={isPending || isConfirming || isSavingDraft}

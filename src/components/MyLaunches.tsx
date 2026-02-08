@@ -16,7 +16,7 @@ import {
 } from "@/config/contracts";
 import { ExternalLink, Rocket, RefreshCw, Settings, FileText, Trash2, Clock } from "lucide-react";
 import Link from "next/link";
-import { listDrafts, deleteDraft, type DraftIndexEntry } from "@/lib/ipfs";
+import { listDrafts, deleteDraft, type DraftIndexEntry } from "@/lib/drafts";
 
 interface MyLaunchesProps {
   onNavigateToNewLaunch: () => void;
@@ -63,10 +63,10 @@ export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
   }, [loadUserDrafts]);
 
   const handleDeleteDraft = useCallback(
-    async (cid: string) => {
+    async (id: string) => {
       if (!address) return;
-      await deleteDraft(address, cid);
-      setDrafts((prev) => prev.filter((d) => d.cid !== cid));
+      await deleteDraft(id, address);
+      setDrafts((prev) => prev.filter((d) => d.id !== id));
     },
     [address]
   );
@@ -218,7 +218,7 @@ export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
           </h2>
           <div className="grid gap-3">
             {drafts.map((draft) => (
-              <Card key={draft.cid} className="border-dashed">
+              <Card key={draft.id} className="border-dashed">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -230,7 +230,7 @@ export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
                     </span>
                   </div>
                   <CardDescription className="font-mono text-xs truncate">
-                    {draft.cid}
+                    {draft.id}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -239,7 +239,7 @@ export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
                       <span className="text-muted-foreground">Saved</span>
                       <span className="flex items-center gap-1 text-xs">
                         <Clock className="h-3 w-3" />
-                        {new Date(draft.createdAt).toLocaleString()}
+                        {new Date(draft.updatedAt || draft.createdAt).toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -247,7 +247,7 @@ export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
                       <span className="text-xs">{draft.chainId}</span>
                     </div>
                     <div className="flex gap-2 pt-3">
-                      <Link href={`/draft/${draft.cid}`} className="flex-1">
+                      <Link href={`/draft/${draft.id}`} className="flex-1">
                         <Button variant="outline" size="sm" className="w-full">
                           <FileText className="h-4 w-4" />
                           View Draft
@@ -256,7 +256,7 @@ export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteDraft(draft.cid)}
+                        onClick={() => handleDeleteDraft(draft.id)}
                         className="text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />

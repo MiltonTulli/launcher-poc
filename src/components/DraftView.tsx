@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { LaunchForm } from "@/components/LaunchForm";
-import { loadDraft, type DraftPayload } from "@/lib/ipfs";
+import { getDraft, type Draft } from "@/lib/drafts";
 import {
   LaunchFormValues,
   POOL_FEE_TIERS,
@@ -25,22 +25,23 @@ import {
   Rocket,
   Pencil,
   ArrowLeft,
+  Eye,
 } from "lucide-react";
 
 interface DraftViewProps {
-  cid: string;
+  id: string;
 }
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 
 function shortenAddr(addr: string): string {
-  if (!addr || addr.length < 12) return addr || "—";
+  if (!addr || addr.length < 12) return addr || "\u2014";
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-export function DraftView({ cid }: DraftViewProps) {
+export function DraftView({ id }: DraftViewProps) {
   const { address } = useAccount();
-  const [draft, setDraft] = useState<DraftPayload | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -50,33 +51,41 @@ export function DraftView({ cid }: DraftViewProps) {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await loadDraft(cid);
+      const data = await getDraft(id);
       setDraft(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load draft from IPFS");
+      setError(err instanceof Error ? err.message : "Failed to load draft");
     } finally {
       setIsLoading(false);
     }
-  }, [cid]);
+  }, [id]);
 
   useEffect(() => {
     fetchDraft();
   }, [fetchDraft]);
 
+  const isOwner = draft?.owner
+    ? address?.toLowerCase() === draft.owner.toLowerCase()
+    : false;
+
   const handleCopyLink = useCallback(async () => {
-    const url = `${window.location.origin}/draft/${cid}`;
+    const url = `${window.location.origin}/draft/${id}`;
     await navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [cid]);
+  }, [id]);
+
+  const handleDraftSaved = useCallback(() => {
+    setIsEditing(false);
+    fetchDraft();
+  }, [fetchDraft]);
 
   // Loading
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <Spinner size="lg" />
-        <p className="mt-4 text-sm text-muted-foreground">Loading draft from IPFS...</p>
-        <p className="mt-1 text-xs text-muted-foreground font-mono">{cid}</p>
+        <p className="mt-4 text-sm text-muted-foreground">Loading draft...</p>
       </div>
     );
   }
@@ -90,9 +99,9 @@ export function DraftView({ cid }: DraftViewProps) {
         </div>
         <h2 className="text-xl font-semibold mb-2">Draft not found</h2>
         <p className="text-sm text-muted-foreground mb-1 max-w-sm text-center">
-          {error || "Could not load draft data from IPFS."}
+          {error || "Could not load draft."}
         </p>
-        <p className="text-xs text-muted-foreground font-mono mb-4">{cid}</p>
+        <p className="text-xs text-muted-foreground font-mono mb-4">{id}</p>
         <Button variant="outline" onClick={fetchDraft}>
           <RefreshCw className="h-4 w-4" />
           Retry
@@ -114,11 +123,11 @@ export function DraftView({ cid }: DraftViewProps) {
     const parts = [];
     if (d > 0) parts.push(`${d}d`);
     if (h > 0) parts.push(`${h}h`);
-    return parts.length > 0 ? parts.join(" ") : "—";
+    return parts.length > 0 ? parts.join(" ") : "\u2014";
   })();
 
   // ============================================
-  // Edit mode → show full LaunchForm
+  // Edit mode -> show full LaunchForm
   // ============================================
   if (isEditing) {
     return (
@@ -129,7 +138,12 @@ export function DraftView({ cid }: DraftViewProps) {
             Back to summary
           </Button>
         </div>
-        <LaunchForm initialValues={fv} mode="draft" />
+        <LaunchForm
+          initialValues={fv}
+          mode="draft"
+          draftId={id}
+          onDraftSaved={handleDraftSaved}
+        />
       </div>
     );
   }
@@ -149,12 +163,20 @@ export function DraftView({ cid }: DraftViewProps) {
             <div className="flex-1 min-w-0">
               <CardTitle className="text-xl">Launch Draft</CardTitle>
               <CardDescription className="font-mono text-xs mt-1 truncate">
-                {cid}
+                {id}
               </CardDescription>
             </div>
-            <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 shrink-0">
-              Draft
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {!isOwner && address && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  <Eye className="h-3 w-3" />
+                  View Only
+                </span>
+              )}
+              <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                Draft
+              </span>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -165,16 +187,22 @@ export function DraftView({ cid }: DraftViewProps) {
                 {new Date(draft.createdAt).toLocaleString()}
               </div>
             )}
-            {draft.creator && (
+            {draft.owner && (
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <User className="h-3.5 w-3.5" />
-                <span className="font-mono text-xs">{shortenAddr(draft.creator)}</span>
+                <span className="font-mono text-xs">{shortenAddr(draft.owner)}</span>
               </div>
             )}
             {draft.chainId && (
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <Globe className="h-3.5 w-3.5" />
                 Chain {draft.chainId}
+              </div>
+            )}
+            {draft.updatedAt && draft.updatedAt !== draft.createdAt && (
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Updated {new Date(draft.updatedAt).toLocaleString()}
               </div>
             )}
           </div>
@@ -267,15 +295,17 @@ export function DraftView({ cid }: DraftViewProps) {
 
       {/* Action Buttons */}
       <div className="flex gap-3">
-        <Button
-          variant="outline"
-          className="flex-1 h-12 text-base"
-          size="lg"
-          onClick={() => setIsEditing(true)}
-        >
-          <Pencil className="h-5 w-5" />
-          Edit
-        </Button>
+        {isOwner && (
+          <Button
+            variant="outline"
+            className="flex-1 h-12 text-base"
+            size="lg"
+            onClick={() => setIsEditing(true)}
+          >
+            <Pencil className="h-5 w-5" />
+            Edit
+          </Button>
+        )}
         {!address ? (
           <div className="flex-1 flex flex-col items-center gap-2">
             <appkit-button />
@@ -308,7 +338,7 @@ function SummaryRow({
   value?: string;
   mono?: boolean;
 }) {
-  const display = value || "—";
+  const display = value || "\u2014";
   const shortened = mono && display.length > 20 ? shortenAddr(display) : display;
 
   return (

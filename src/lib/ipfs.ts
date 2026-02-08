@@ -111,6 +111,34 @@ async function putIndex(address: string, entries: DraftIndexEntry[]): Promise<vo
 }
 
 // ============================================
+// URL-safe encoding for shareable draft links
+// ============================================
+
+/**
+ * Encode a draft payload into a URL-safe base64 string.
+ * This embeds the full payload in the share link so recipients
+ * can view the draft without needing IPFS or the creator's IndexedDB.
+ */
+export function encodeDraftForUrl(payload: DraftPayload): string {
+  const json = JSON.stringify(payload);
+  const base64 = btoa(unescape(encodeURIComponent(json)));
+  // Make URL-safe: + → -, / → _, strip padding =
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Decode a draft payload from a URL-safe base64 string.
+ */
+export function decodeDraftFromUrl(encoded: string): DraftPayload {
+  // Restore standard base64
+  let base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+  // Add back padding
+  while (base64.length % 4) base64 += "=";
+  const json = decodeURIComponent(escape(atob(base64)));
+  return JSON.parse(json) as DraftPayload;
+}
+
+// ============================================
 // Public API
 // ============================================
 
@@ -141,10 +169,31 @@ export async function saveDraft(payload: DraftPayload): Promise<string> {
 }
 
 /**
- * Load a draft by CID. Tries IndexedDB first, then a public IPFS gateway.
+ * Load a draft by CID.
+ * Priority: URL-encoded data → IndexedDB → IPFS gateway.
+ *
+ * When `encodedData` is provided (from the share link), it decodes directly
+ * and also caches the result in IndexedDB for future local access.
  */
-export async function loadDraft(cidStr: string): Promise<DraftPayload> {
-  // 1. Try local IndexedDB
+export async function loadDraft(cidStr: string, encodedData?: string | null): Promise<DraftPayload> {
+  // 1. Try URL-encoded data (from share link)
+  if (encodedData) {
+    try {
+      const payload = decodeDraftFromUrl(encodedData);
+      // Cache in IndexedDB so future visits without the param still work
+      try {
+        const { bytes } = await computeCid(payload);
+        await idbPut(cidStr, bytes);
+      } catch {
+        // caching is best-effort
+      }
+      return payload;
+    } catch {
+      // fall through to other methods
+    }
+  }
+
+  // 2. Try local IndexedDB
   try {
     const bytes = await idbGet(cidStr);
     if (bytes) {
@@ -154,11 +203,20 @@ export async function loadDraft(cidStr: string): Promise<DraftPayload> {
     // fall through
   }
 
-  // 2. Fallback: IPFS HTTP gateway (dag-json endpoint)
-  const gatewayUrl = `https://dweb.link/api/v0/dag/get?arg=${cidStr}`;
-  const resp = await fetch(gatewayUrl, { signal: AbortSignal.timeout(15000) });
-  if (!resp.ok) throw new Error("Draft not found");
-  return (await resp.json()) as DraftPayload;
+  // 3. Fallback: IPFS HTTP gateway (dag-json endpoint)
+  const gateways = [
+    `https://w3s.link/ipfs/${cidStr}`,
+    `https://dweb.link/api/v0/dag/get?arg=${cidStr}`,
+  ];
+  for (const gatewayUrl of gateways) {
+    try {
+      const resp = await fetch(gatewayUrl, { signal: AbortSignal.timeout(10000) });
+      if (resp.ok) return (await resp.json()) as DraftPayload;
+    } catch {
+      // try next gateway
+    }
+  }
+  throw new Error("Draft not found. The share link may be incomplete — ask the creator to re-share.");
 }
 
 /**
