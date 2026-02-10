@@ -38,7 +38,7 @@ export function useLaunches() {
     address: contractAddress,
     abi: TALLY_LAUNCH_FACTORY_ABI,
     functionName: "getLaunchCount",
-    query: { enabled },
+    query: { enabled, staleTime: 30_000 },
   });
 
   const count = typeof launchCount === "bigint" ? Number(launchCount) : 0;
@@ -56,7 +56,7 @@ export function useLaunches() {
 
   const { data: addressResults, isLoading: isLoadingAddresses } = useReadContracts({
     contracts: addressContracts,
-    query: { enabled: addressContracts.length > 0 },
+    query: { enabled: addressContracts.length > 0, staleTime: 30_000 },
   });
 
   // Step 3: Extract orchestrator addresses
@@ -82,7 +82,7 @@ export function useLaunches() {
 
   const { data: detailResults, isLoading: isLoadingDetails } = useReadContracts({
     contracts: detailContracts,
-    query: { enabled: detailContracts.length > 0 },
+    query: { enabled: detailContracts.length > 0, staleTime: 30_000 },
   });
 
   // Step 5: Parse results

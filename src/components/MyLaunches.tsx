@@ -12,11 +12,7 @@ import { useLaunches } from "@/hooks/useLaunches";
 import { LaunchCard } from "@/components/LaunchCard";
 import { EXPLORER_URLS } from "@/lib/utils";
 
-interface MyLaunchesProps {
-  onNavigateToNewLaunch: () => void;
-}
-
-export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
+export function MyLaunches() {
   const { address } = useAccount();
   const chainId = useChainId();
   const explorerUrl = EXPLORER_URLS[chainId] || "https://etherscan.io";
@@ -94,10 +90,12 @@ export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
         <p className="mt-2 text-sm text-muted-foreground max-w-sm text-center">
           You haven&apos;t created any token launches or drafts. Get started by creating your first one.
         </p>
-        <Button onClick={onNavigateToNewLaunch} className="mt-6">
-          <Rocket className="h-4 w-4" />
-          Create your first launch
-        </Button>
+        <Link href="/new">
+          <Button className="mt-6">
+            <Rocket className="h-4 w-4" />
+            Create your first launch
+          </Button>
+        </Link>
       </div>
     );
   }
@@ -162,7 +160,7 @@ export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
                       <span className="text-xs">{draft.chainId}</span>
                     </div>
                     <div className="flex gap-2 pt-3">
-                      <Link href={`/draft/${draft.id}`} className="flex-1">
+                      <Link href={`/drafts/${draft.id}`} className="flex-1">
                         <Button variant="outline" size="sm" className="w-full">
                           <FileText className="h-4 w-4" />
                           View Draft
@@ -194,7 +192,7 @@ export function MyLaunches({ onNavigateToNewLaunch }: MyLaunchesProps) {
             </h2>
           )}
           <div className="grid gap-4">
-            {myLaunches.map((launch) => (
+            {[...myLaunches].reverse().map((launch) => (
               <LaunchCard
                 key={launch.orchestratorAddress}
                 launch={launch}

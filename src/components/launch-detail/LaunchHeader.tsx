@@ -66,7 +66,7 @@ export function LaunchHeader({
         )}
         {linkedDraftId && (
           <Link
-            href={`/draft/${linkedDraftId}`}
+            href={`/drafts/${linkedDraftId}`}
             className="inline-flex items-center gap-1 mt-2 text-xs text-blue-700 bg-blue-100 rounded-full px-2.5 py-0.5 hover:bg-blue-200 transition-colors"
           >
             <FileText className="h-3 w-3" />
@@ -75,7 +75,7 @@ export function LaunchHeader({
         )}
         <div className="mt-2">
           <ShareBar
-            url={typeof window !== "undefined" ? `${window.location.origin}/launch/${address}` : ""}
+            url={typeof window !== "undefined" ? `${window.location.origin}/launches/${address}` : ""}
             text={`Check out Launch #${launchInfo.launchId.toString()} on Tally Launch`}
           />
         </div>

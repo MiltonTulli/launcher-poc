@@ -268,7 +268,7 @@ export function useLaunchForm({
           createDraft(payload),
           new Promise((r) => setTimeout(r, 600)),
         ]);
-        router.push(`/draft/${draft.id}`);
+        router.push(`/drafts/${draft.id}`);
       }
     } catch (err) {
       setDraftError(err instanceof Error ? err.message : "Failed to save draft");

@@ -52,7 +52,7 @@ export function AllLaunches() {
       </div>
 
       <div className="grid gap-4">
-        {launches.map((launch) => (
+        {[...launches].reverse().map((launch) => (
           <LaunchCard
             key={launch.orchestratorAddress}
             launch={launch}

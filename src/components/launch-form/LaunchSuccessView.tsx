@@ -24,7 +24,7 @@ export function LaunchSuccessView({ result, chainId }: LaunchSuccessViewProps) {
   const router = useRouter();
   const [countdown, setCountdown] = useState(5);
 
-  const launchPath = `/launch/${result.launcherAddress}`;
+  const launchPath = `/launches/${result.launcherAddress}`;
 
   // Auto-redirect countdown
   useEffect(() => {
