@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Inter } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Web3Provider } from "@/context/Web3Provider";
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-geist-sans",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
 });
 
 export const metadata: Metadata = {
@@ -26,8 +31,8 @@ export default async function RootLayout({
   const cookies = headersObj.get("cookie");
 
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-gradient-to-b from-background to-muted/20 font-sans antialiased">
+    <html lang="en" className={`${inter.variable} ${geistMono.variable}`} suppressHydrationWarning>
+      <body className="min-h-screen bg-background font-sans antialiased">
         <Web3Provider cookies={cookies}>{children}</Web3Provider>
       </body>
     </html>

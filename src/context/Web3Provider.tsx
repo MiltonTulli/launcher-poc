@@ -2,6 +2,7 @@
 
 import React, { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { createAppKit } from "@reown/appkit/react";
 import { cookieToInitialState, WagmiProvider, type Config } from "wagmi";
 import { wagmiAdapter, projectId, networks } from "@/config/wagmi";
@@ -29,9 +30,8 @@ createAppKit({
     email: false,
     socials: false,
   },
-  themeMode: "light",
   themeVariables: {
-    "--w3m-accent": "#7c3aed",
+    "--w3m-accent": "#725bff",
     "--w3m-border-radius-master": "2px",
   },
 });
@@ -52,7 +52,11 @@ export function Web3Provider({ children, cookies }: Web3ProviderProps) {
       config={wagmiAdapter.wagmiConfig as Config}
       initialState={initialState}
     >
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          {children}
+        </ThemeProvider>
+      </QueryClientProvider>
     </WagmiProvider>
   );
 }

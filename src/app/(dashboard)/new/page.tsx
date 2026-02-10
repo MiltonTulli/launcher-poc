@@ -4,9 +4,9 @@ import { LaunchForm } from "@/components/launch-form";
 
 function InfoCard({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <h3 className="font-medium mb-1">{title}</h3>
-      <p className="text-sm text-muted-foreground">{description}</p>
+    <div className="rounded-xl border bg-card px-4 py-3.5 shadow-sm">
+      <h3 className="text-sm font-medium mb-1">{title}</h3>
+      <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   );
 }
@@ -15,11 +15,11 @@ export default function NewLaunchPage() {
   return (
     <>
       {/* Hero Section */}
-      <div className="mb-8 sm:mb-12 text-center">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+      <div className="mb-6 sm:mb-10 text-center">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">
           Launch Your Token
         </h1>
-        <p className="text-muted-foreground max-w-2xl mx-auto">
+        <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
           Deploy token launches using TallyLaunchFactory on Uniswap V4.
           Configure auction parameters, allocation splits, and pool settings.
         </p>
