@@ -9,6 +9,7 @@ import {
   TALLY_LAUNCH_ORCHESTRATOR_ABI,
   LaunchState,
 } from "@/config/contracts";
+import { ZERO_ADDRESS } from "@/lib/utils";
 
 export interface LaunchEntry {
   orchestratorAddress: Address;
@@ -26,7 +27,7 @@ export interface LaunchEntry {
 export function useLaunches() {
   const chainId = useChainId();
   const contractAddress = TALLY_LAUNCH_FACTORY_ADDRESSES[chainId];
-  const enabled = !!contractAddress && contractAddress !== "0x0000000000000000000000000000000000000000";
+  const enabled = !!contractAddress && contractAddress !== ZERO_ADDRESS;
 
   // Step 1: Get launch count
   const {
@@ -63,7 +64,7 @@ export function useLaunches() {
     if (!addressResults) return [];
     return addressResults
       .map((r) => r.result as Address | undefined)
-      .filter((addr): addr is Address => !!addr && addr !== "0x0000000000000000000000000000000000000000");
+      .filter((addr): addr is Address => !!addr && addr !== ZERO_ADDRESS);
   }, [addressResults]);
 
   // Step 4: Multicall orchestrator details for each address

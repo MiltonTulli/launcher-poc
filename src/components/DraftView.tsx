@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
-import { LaunchForm } from "@/components/LaunchForm";
+import { LaunchForm } from "@/components/launch-form";
 import { getDraft, type Draft } from "@/lib/drafts";
 import {
   LaunchFormValues,
@@ -27,16 +27,11 @@ import {
 } from "lucide-react";
 import { ShareBar } from "@/components/ShareBar";
 import { CommentsSection } from "@/components/CommentsSection";
+import { SummaryRow } from "@/components/SummaryRow";
+import { shortenAddress, ZERO_ADDRESS } from "@/lib/utils";
 
 interface DraftViewProps {
   id: string;
-}
-
-const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
-
-function shortenAddr(addr: string): string {
-  if (!addr || addr.length < 12) return addr || "\u2014";
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 export function DraftView({ id }: DraftViewProps) {
@@ -184,7 +179,7 @@ export function DraftView({ id }: DraftViewProps) {
             {draft.owner && (
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <User className="h-3.5 w-3.5" />
-                <span className="font-mono text-xs">{shortenAddr(draft.owner)}</span>
+                <span className="font-mono text-xs">{shortenAddress(draft.owner)}</span>
               </div>
             )}
             {draft.chainId && (
@@ -266,7 +261,7 @@ export function DraftView({ id }: DraftViewProps) {
             <SummaryRow label="Tick Spacing" value={fv.tickSpacing} />
             <SummaryRow label="Lockup Duration" value={fv.lockupDurationDays ? `${fv.lockupDurationDays} days` : undefined} />
             <SummaryRow label="Distribution Delay" value={fv.distributionDelayDays ? `${fv.distributionDelayDays} days` : undefined} />
-            {fv.validationHook && fv.validationHook !== ZERO_ADDR && (
+            {fv.validationHook && fv.validationHook !== ZERO_ADDRESS && (
               <SummaryRow label="Validation Hook" value={fv.validationHook} mono />
             )}
           </div>
@@ -311,27 +306,3 @@ export function DraftView({ id }: DraftViewProps) {
   );
 }
 
-// ============================================
-// Summary Row
-// ============================================
-function SummaryRow({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value?: string;
-  mono?: boolean;
-}) {
-  const display = value || "\u2014";
-  const shortened = mono && display.length > 20 ? shortenAddr(display) : display;
-
-  return (
-    <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={mono ? "font-mono text-xs" : ""} title={mono ? value : undefined}>
-        {shortened}
-      </span>
-    </div>
-  );
-}

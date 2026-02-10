@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LaunchForm } from "@/components/LaunchForm";
+import { LaunchForm } from "@/components/launch-form";
 import { MyLaunches } from "@/components/MyLaunches";
 import { AllLaunches } from "@/components/AllLaunches";
 import { useAccount, useChainId } from "wagmi";

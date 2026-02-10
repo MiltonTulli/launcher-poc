@@ -8,26 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { MessageSquare, Send } from "lucide-react";
 import { getComments, postComment, type Comment } from "@/lib/comments";
+import { shortenAddress, timeAgo } from "@/lib/utils";
 
 interface CommentsSectionProps {
   resourceType: "draft" | "launch";
   resourceId: string;
-}
-
-function shortenAddress(addr: string): string {
-  if (!addr || addr.length < 12) return addr || "\u2014";
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
-
-function timeAgo(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
 
 export function CommentsSection({ resourceType, resourceId }: CommentsSectionProps) {

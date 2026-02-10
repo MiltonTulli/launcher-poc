@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import { isAddress } from "viem";
-import { LaunchDetail } from "@/components/LaunchDetail";
+import { LaunchDetail } from "@/components/launch-detail";
 import { Rocket, ArrowLeft, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
