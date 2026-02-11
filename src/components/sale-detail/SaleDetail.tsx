@@ -10,7 +10,7 @@ import { SaleHeader } from "./SaleHeader";
 import { KeyMetrics } from "./KeyMetrics";
 import { AllBidsTable } from "./AllBidsTable";
 import { ControlPanel } from "./ControlPanel";
-import { SaleInfoCard } from "./SaleInfoCard";
+import { SaleInfoTabs } from "./SaleInfoTabs";
 import { SaleActionsPanel } from "./SaleActionsPanel";
 
 interface SaleDetailProps {
@@ -64,28 +64,24 @@ export function SaleDetail({ address }: SaleDetailProps) {
 
       {/* Main grid: bids table (8 cols) + control panel (4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Control panel — order-first on mobile so it appears above bids */}
-        <div className="lg:col-span-4 lg:order-last order-first">
-          <div className="lg:sticky lg:top-6">
+        {/* Control panel + admin actions — order-first on mobile */}
+        <div className="lg:col-span-4 lg:order-last order-first space-y-4">
+          <div className="lg:sticky lg:top-6 space-y-4">
             <ControlPanel data={data} ccaAddress={address} />
+            <SaleActionsPanel
+              ccaAddress={address}
+              phase={data.phase}
+              onRefresh={data.refetch}
+            />
           </div>
         </div>
 
-        {/* Bids table */}
-        <div className="lg:col-span-8">
+        {/* Bids table + sale info tabs */}
+        <div className="lg:col-span-8 space-y-6">
           <AllBidsTable data={data} />
+          <SaleInfoTabs data={data} />
         </div>
       </div>
-
-      {/* Auction parameters */}
-      <SaleInfoCard data={data} />
-
-      {/* Admin actions (sweep) */}
-      <SaleActionsPanel
-        ccaAddress={address}
-        phase={data.phase}
-        onRefresh={data.refetch}
-      />
     </div>
   );
 }

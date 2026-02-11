@@ -936,14 +936,14 @@ export const CCA_AUCTION_ABI = [
   },
   {
     type: "function",
-    name: "sweepTokens",
+    name: "sweepUnsoldTokens",
     inputs: [],
     outputs: [],
     stateMutability: "nonpayable",
   },
   {
     type: "function",
-    name: "sweepFunds",
+    name: "sweepCurrency",
     inputs: [],
     outputs: [],
     stateMutability: "nonpayable",

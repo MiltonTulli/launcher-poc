@@ -5,6 +5,7 @@ import { Address } from "viem";
 import { useAccount, useChainId, useReadContracts } from "wagmi";
 import {
   TALLY_LAUNCH_ORCHESTRATOR_ABI,
+  CCA_AUCTION_ABI,
   ERC20_ABI,
   ACCESS_CONTROL_ABI,
   MINTER_ROLE,
@@ -49,6 +50,11 @@ export interface UseLaunchDataReturn {
   hasMinterRole: boolean | undefined;
   operatorTokenBalance: bigint | undefined;
   tokenLoading: boolean;
+
+  // CCA supplemental data (read directly from CCA contract)
+  ccaAddress: Address | undefined;
+  ccaCurrencyRaised: bigint | undefined;
+  ccaIsGraduated: boolean | undefined;
 
   // Wallet / chain
   connectedAddress: Address | undefined;
@@ -186,6 +192,25 @@ export function useLaunchData(address: Address): UseLaunchDataReturn {
     : undefined;
   const operatorTokenBalance = tr?.[3]?.result as bigint | undefined;
 
+  // ============================================
+  // CCA Supplemental: read currencyRaised directly from CCA
+  // ============================================
+  const ccaAddress = auctionInfo?.cca;
+  const hasCCA = !!ccaAddress && ccaAddress !== ZERO_ADDRESS;
+
+  const { data: ccaResults } = useReadContracts({
+    contracts: hasCCA
+      ? [
+          { address: ccaAddress!, abi: CCA_AUCTION_ABI, functionName: "currencyRaised" as const },
+          { address: ccaAddress!, abi: CCA_AUCTION_ABI, functionName: "isGraduated" as const },
+        ]
+      : [],
+    query: { enabled: hasCCA, refetchInterval: 15000 },
+  });
+
+  const ccaCurrencyRaised = ccaResults?.[0]?.result as bigint | undefined;
+  const ccaIsGraduated = ccaResults?.[1]?.result as boolean | undefined;
+
   // auctionTimeElapsed needs `now` but we compute it here based on current time
   // so the hook is self-contained. The parent can also pass `now` via the
   // preconditions hook for countdown logic.
@@ -224,6 +249,10 @@ export function useLaunchData(address: Address): UseLaunchDataReturn {
     hasMinterRole,
     operatorTokenBalance,
     tokenLoading,
+
+    ccaAddress: hasCCA ? ccaAddress! : undefined,
+    ccaCurrencyRaised,
+    ccaIsGraduated,
 
     connectedAddress,
     chainId,

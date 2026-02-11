@@ -15,6 +15,7 @@ import {
   LAUNCH_PRESETS,
   LaunchFormValues,
 } from "@/config/contracts";
+import { WalletButton } from "@/components/WalletButton";
 import {
   Rocket,
   AlertCircle,
@@ -417,9 +418,7 @@ export function LaunchForm({ initialValues, mode = "create", draftId, onDraftSav
             <div className="space-y-3">
               {!address ? (
                 <>
-                  <div className="text-center">
-                    <appkit-button balance="hide" />
-                  </div>
+                  <WalletButton size="lg" />
                   <p className="text-xs text-center text-muted-foreground">
                     Connect your wallet to create a launch{mode !== "draft" ? " or save a draft" : ""}
                   </p>

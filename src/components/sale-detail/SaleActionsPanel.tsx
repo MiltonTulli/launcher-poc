@@ -6,7 +6,6 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { CheckCircle2 } from "lucide-react";
@@ -26,27 +25,25 @@ export function SaleActionsPanel({
   if (phase < CCAPhase.ENDED) return null;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Admin Actions</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <SweepButton
-            label="Sweep Funds"
-            functionName="sweepFunds"
-            ccaAddress={ccaAddress}
-            onSuccess={onRefresh}
-          />
-          <SweepButton
-            label="Sweep Tokens"
-            functionName="sweepTokens"
-            ccaAddress={ccaAddress}
-            onSuccess={onRefresh}
-          />
-        </div>
-      </CardContent>
-    </Card>
+    <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+        Admin Actions
+      </h3>
+      <div className="grid gap-2 grid-cols-2">
+        <SweepButton
+          label="Sweep Funds"
+          functionName="sweepCurrency"
+          ccaAddress={ccaAddress}
+          onSuccess={onRefresh}
+        />
+        <SweepButton
+          label="Sweep Tokens"
+          functionName="sweepUnsoldTokens"
+          ccaAddress={ccaAddress}
+          onSuccess={onRefresh}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -80,7 +77,8 @@ function SweepButton({
     <div>
       <Button
         variant="outline"
-        className="w-full"
+        size="sm"
+        className="w-full text-xs"
         disabled={isPending || isConfirming}
         onClick={() => {
           reset();

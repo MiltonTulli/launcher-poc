@@ -10,8 +10,8 @@ interface InfoRowProps {
 
 export function InfoRow({ label, value, isAddress: isAddr, explorerUrl }: InfoRowProps) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-muted-foreground shrink-0">{label}</span>
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 border-b border-border last:border-0 gap-1 sm:gap-4">
+      <span className="text-sm text-muted-foreground shrink-0">{label}</span>
       {isAddr && explorerUrl ? (
         <a
           href={`${explorerUrl}/address/${value}`}
@@ -23,7 +23,7 @@ export function InfoRow({ label, value, isAddress: isAddr, explorerUrl }: InfoRo
           <ExternalLink className="h-3 w-3 shrink-0" />
         </a>
       ) : (
-        <span className="font-mono text-xs truncate">{value}</span>
+        <span className="text-sm font-medium text-foreground text-right truncate">{value}</span>
       )}
     </div>
   );

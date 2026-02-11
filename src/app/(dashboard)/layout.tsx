@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { useAccount, useChainId } from "wagmi";
@@ -12,6 +12,7 @@ import { AlertCircle, Plus, List, Globe, ShoppingCart, type LucideIcon } from "l
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Footer } from "@/components/Footer";
+import { WalletButton } from "@/components/WalletButton";
 
 interface NavItem {
   label: string;
@@ -19,10 +20,7 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-interface NavSection {
-  label: string;
-  items: NavItem[];
-}
+type Mode = "launches" | "sales";
 
 export default function DashboardLayout({
   children,
@@ -32,6 +30,7 @@ export default function DashboardLayout({
   const { isConnected } = useAccount();
   const chainId = useChainId();
   const pathname = usePathname();
+  const router = useRouter();
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const contractAddress = TALLY_LAUNCH_FACTORY_ADDRESSES[chainId];
@@ -44,35 +43,43 @@ export default function DashboardLayout({
   const logoSrc =
     mounted && resolvedTheme === "dark" ? "/tally-dark.svg" : "/tally.svg";
 
-  const navSections: NavSection[] = [
-    {
-      label: "LAUNCH",
-      items: [
-        { label: "New Launch", href: "/new", icon: Plus },
-        { label: "All Launches", href: "/launches", icon: Globe },
-        ...(isConnected
-          ? [{ label: "My Launches", href: "/my-launches", icon: List }]
-          : []),
-      ],
-    },
-    {
-      label: "SALE",
-      items: [
-        { label: "All Sales", href: "/sales", icon: ShoppingCart },
-      ],
-    },
-  ];
+  // Auto-detect active mode from route
+  const activeMode: Mode = pathname.startsWith("/sales") ? "sales" : "launches";
 
-  const allNavItems = navSections.flatMap((s) => s.items);
+  const navItemsByMode: Record<Mode, NavItem[]> = {
+    launches: [
+      { label: "New Launch", href: "/launches/new", icon: Plus },
+      { label: "All Launches", href: "/launches", icon: Globe },
+      ...(isConnected
+        ? [{ label: "My Launches", href: "/my-launches", icon: List }]
+        : []),
+    ],
+    sales: [
+      { label: "All Sales", href: "/sales", icon: ShoppingCart },
+    ],
+  };
+
+  const currentNavItems = navItemsByMode[activeMode];
 
   function isActive(href: string) {
     if (href === "/launches") {
-      return pathname === "/launches" || pathname.startsWith("/launches/");
+      return (
+        (pathname === "/launches" || pathname.startsWith("/launches/")) &&
+        pathname !== "/launches/new"
+      );
+    }
+    if (href === "/launches/new") {
+      return pathname === "/launches/new";
     }
     if (href === "/sales") {
       return pathname === "/sales" || pathname.startsWith("/sales/");
     }
     return pathname === href || pathname.startsWith(href + "/");
+  }
+
+  function handleToggle(mode: Mode) {
+    if (mode === activeMode) return;
+    router.push(mode === "launches" ? "/launches" : "/sales");
   }
 
   return (
@@ -99,16 +106,42 @@ export default function DashboardLayout({
               </div>
             )}
             <NetworkBadge />
-            <appkit-button balance="hide" />
+            <WalletButton />
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      {/* Mobile tabs */}
+      {/* Mobile: toggle + nav */}
       <div className="md:hidden w-full border-b">
+        {/* Mode toggle */}
+        <div className="flex justify-center px-3 pt-2.5 pb-1.5">
+          <div className="inline-flex rounded-lg bg-muted p-1">
+            <button
+              onClick={() => handleToggle("launches")}
+              className={`rounded-md px-4 py-1.5 text-xs font-medium transition-colors ${
+                activeMode === "launches"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Launches
+            </button>
+            <button
+              onClick={() => handleToggle("sales")}
+              className={`rounded-md px-4 py-1.5 text-xs font-medium transition-colors ${
+                activeMode === "sales"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Sales
+            </button>
+          </div>
+        </div>
+        {/* Nav items */}
         <div className="flex overflow-x-auto">
-          {allNavItems.map((item) => (
+          {currentNavItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -128,29 +161,44 @@ export default function DashboardLayout({
       <div className="flex flex-1">
         {/* Sidebar - hidden on mobile */}
         <aside className="hidden md:flex w-56 flex-col border-r p-3">
-          <nav className="space-y-4">
-            {navSections.map((section) => (
-              <div key={section.label}>
-                <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {section.label}
-                </div>
-                <div className="space-y-0.5">
-                  {section.items.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                        isActive(item.href)
-                          ? "bg-secondary text-foreground"
-                          : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                      }`}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
+          {/* Segmented toggle */}
+          <div className="rounded-lg bg-muted p-1 flex mb-4">
+            <button
+              onClick={() => handleToggle("launches")}
+              className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+                activeMode === "launches"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Launches
+            </button>
+            <button
+              onClick={() => handleToggle("sales")}
+              className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+                activeMode === "sales"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Sales
+            </button>
+          </div>
+
+          <nav className="space-y-0.5">
+            {currentNavItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive(item.href)
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                }`}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
             ))}
           </nav>
         </aside>

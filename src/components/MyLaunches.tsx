@@ -90,7 +90,7 @@ export function MyLaunches() {
         <p className="mt-2 text-sm text-muted-foreground max-w-sm text-center">
           You haven&apos;t created any token launches or drafts. Get started by creating your first one.
         </p>
-        <Link href="/new">
+        <Link href="/launches/new">
           <Button className="mt-6">
             <Rocket className="h-4 w-4" />
             Create your first launch

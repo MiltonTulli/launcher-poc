@@ -13,6 +13,7 @@ import {
   TOKEN_SOURCE_OPTIONS,
 } from "@/config/contracts";
 import { useAccount } from "wagmi";
+import { WalletButton } from "@/components/WalletButton";
 import {
   FileText,
   AlertCircle,
@@ -285,7 +286,7 @@ export function DraftView({ id }: DraftViewProps) {
         )}
         {!address ? (
           <div className="flex-1 flex flex-col items-center gap-2">
-            <appkit-button balance="hide" />
+            <WalletButton />
             <p className="text-xs text-muted-foreground">Connect to launch</p>
           </div>
         ) : (

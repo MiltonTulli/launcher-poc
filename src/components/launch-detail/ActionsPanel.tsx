@@ -1,12 +1,21 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Address } from "viem";
+import {
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LaunchState } from "@/config/contracts";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { CheckCircle2 } from "lucide-react";
+import { LaunchState, CCA_AUCTION_ABI } from "@/config/contracts";
 import { ActionButton } from "./ActionButton";
 import { PreconditionChecklist } from "./PreconditionChecklist";
 import type { PreconditionCheck } from "./types";
+import { WalletButton } from "@/components/WalletButton";
 
 interface ActionsPanelProps {
   address: Address;
@@ -17,6 +26,8 @@ interface ActionsPanelProps {
   auctionTimeElapsed: boolean;
   preconditionsByAction: Record<string, PreconditionCheck[]>;
   onRefresh: () => void;
+  ccaAddress?: Address;
+  ccaIsGraduated?: boolean;
 }
 
 export function ActionsPanel({
@@ -28,6 +39,8 @@ export function ActionsPanel({
   auctionTimeElapsed,
   preconditionsByAction,
   onRefresh,
+  ccaAddress,
+  ccaIsGraduated,
 }: ActionsPanelProps) {
   const sections: React.ReactElement[] = [];
 
@@ -89,12 +102,17 @@ export function ActionsPanel({
               action="Distribution"
             />
           )}
+          {/* Sweep CCA funds to orchestrator (required before distribution) */}
+          {ccaAddress && ccaIsGraduated && (
+            <CcaSweepButton ccaAddress={ccaAddress} onSuccess={onRefresh} />
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <ActionButton
               label="Distribute All"
               functionName="distributeAll"
               contractAddress={address}
               onSuccess={onRefresh}
+              simulatable
             />
             <ActionButton
               label="Distribute Liquidity"
@@ -102,6 +120,7 @@ export function ActionsPanel({
               contractAddress={address}
               variant="outline"
               onSuccess={onRefresh}
+              simulatable
             />
           </div>
           {preconditionsByAction["distributeTreasury"] && (
@@ -120,6 +139,7 @@ export function ActionsPanel({
             contractAddress={address}
             variant="outline"
             onSuccess={onRefresh}
+            simulatable
           />
         </div>
       );
@@ -140,6 +160,7 @@ export function ActionsPanel({
           contractAddress={address}
           variant="destructive"
           onSuccess={onRefresh}
+          simulatable
         />
       </div>
     );
@@ -233,7 +254,7 @@ export function ActionsPanel({
               Connect your wallet to perform actions on this launch.
             </p>
             <div>
-              <appkit-button balance="hide" />
+              <WalletButton />
             </div>
           </CardContent>
         </Card>
@@ -262,8 +283,79 @@ export function ActionsPanel({
         <CardTitle className="text-base">Actions</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">{sections}</div>
+        <div className="space-y-4">
+          {sections.map((section, i) => (
+            <React.Fragment key={section.key}>
+              {i > 0 && <Separator />}
+              {section}
+            </React.Fragment>
+          ))}
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+/** Calls CCA.sweepCurrency() to transfer raised funds to the orchestrator. */
+function CcaSweepButton({
+  ccaAddress,
+  onSuccess,
+}: {
+  ccaAddress: Address;
+  onSuccess: () => void;
+}) {
+  const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  useEffect(() => {
+    if (isSuccess) {
+      onSuccess();
+      const timer = setTimeout(() => reset(), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSuccess, onSuccess, reset]);
+
+  return (
+    <div>
+      <Button
+        variant="outline"
+        className="w-full"
+        disabled={isPending || isConfirming}
+        onClick={() => {
+          reset();
+          writeContract({
+            address: ccaAddress,
+            abi: CCA_AUCTION_ABI,
+            functionName: "sweepCurrency",
+          });
+        }}
+      >
+        {isPending || isConfirming ? (
+          <span className="flex items-center gap-2">
+            <Spinner size="sm" />
+            {isPending ? "Confirm..." : "Sweeping funds..."}
+          </span>
+        ) : isSuccess ? (
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Funds Swept
+          </span>
+        ) : (
+          "Sweep CCA Funds to Orchestrator"
+        )}
+      </Button>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Transfers raised currency from the CCA to the orchestrator. Required before distribution.
+      </p>
+      {error && (
+        <p className="mt-1 text-xs text-red-600">
+          {error.message.includes("User rejected")
+            ? "Rejected"
+            : error.message.length > 100
+              ? error.message.slice(0, 100) + "..."
+              : error.message}
+        </p>
+      )}
+    </div>
   );
 }

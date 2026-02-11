@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { MessageSquare, Send } from "lucide-react";
 import { getComments, postComment, type Comment } from "@/lib/comments";
 import { shortenAddress, timeAgo } from "@/lib/utils";
+import { WalletButton } from "@/components/WalletButton";
 
 interface CommentsSectionProps {
   resourceType: "draft" | "launch";
@@ -131,7 +132,7 @@ export function CommentsSection({ resourceType, resourceId }: CommentsSectionPro
             <p className="text-sm text-muted-foreground">
               Connect your wallet to comment
             </p>
-            <appkit-button balance="hide" />
+            <WalletButton />
           </div>
         )}
       </CardContent>

@@ -240,11 +240,13 @@ export function useCCAData(ccaAddress: Address): UseCCADataReturn {
         ? bid.owner.toLowerCase() === connectedAddress.toLowerCase()
         : false;
 
+      // On-chain status: exitedBlock > 0 means the bid was exited (settled).
+      // We can't distinguish EXITED vs CLAIMED purely on-chain without events,
+      // so we keep it as EXITED once exitedBlock is set. The UI uses phase +
+      // tokensFilled to decide whether to show "Claim" or "Already settled".
       let status = BidStatus.ACTIVE;
       if (bid.exitedBlock > BigInt(0)) {
         status = BidStatus.EXITED;
-      } else if (phase === CCAPhase.CLAIMABLE && bid.tokensFilled > BigInt(0)) {
-        status = BidStatus.CLAIMED;
       }
 
       entries.push({ bidId: i, bid, isUserBid, status });

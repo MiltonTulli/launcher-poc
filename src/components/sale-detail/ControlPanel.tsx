@@ -11,6 +11,7 @@ import { shortenAddress, ZERO_ADDRESS } from "@/lib/utils";
 import { useBidActions } from "@/hooks/useBidActions";
 import { BidStatusBadge } from "./BidStatusBadge";
 import type { UseCCADataReturn } from "@/hooks/useCCAData";
+import { WalletButton } from "@/components/WalletButton";
 
 interface ControlPanelProps {
   data: UseCCADataReturn;
@@ -104,12 +105,15 @@ export function ControlPanel({ data, ccaAddress }: ControlPanelProps) {
 
   // Claimable
   if (phase === CCAPhase.CLAIMABLE) {
+    const hasActiveBids = userBids.some((b) => b.status === BidStatus.ACTIVE);
     return (
       <PanelShell>
         <div className="p-4 border-b border-border">
           <h3 className="text-lg font-semibold">Claim Tokens</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            The auction has graduated. Claim your tokens below.
+            {hasActiveBids
+              ? "Exit your bids first to settle them, then claim your tokens."
+              : "The auction has graduated. Claim your tokens below."}
           </p>
         </div>
         <UserBidsSection
@@ -243,7 +247,7 @@ function BidFormContent({
         <p className="text-sm text-muted-foreground mb-4">
           Connect your wallet to participate in this auction.
         </p>
-        <appkit-button balance="hide" />
+        <WalletButton />
       </div>
     );
   }
@@ -524,8 +528,16 @@ function UserBidsSection({
 }) {
   if (userBids.length === 0) return null;
 
+  // Bids that need to be exited first (ACTIVE after auction ended)
+  const exitableBids = userBids.filter(
+    (b) => b.status === BidStatus.ACTIVE && phase >= CCAPhase.ENDED,
+  );
+  // Bids that have been exited and can now be claimed (EXITED + has tokens + claimable phase)
   const claimableBids = userBids.filter(
-    (b) => b.status === BidStatus.ACTIVE && phase === CCAPhase.CLAIMABLE,
+    (b) =>
+      b.status === BidStatus.EXITED &&
+      b.bid.tokensFilled > BigInt(0) &&
+      phase === CCAPhase.CLAIMABLE,
   );
 
   return (
@@ -534,20 +546,37 @@ function UserBidsSection({
         <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
           Your Active Bids
         </span>
-        {claimableBids.length > 1 && (
+        {exitableBids.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => actions.exitBid(exitableBids[0].bidId)}
+            disabled={actions.isPending || actions.isConfirming}
+          >
+            {actions.isPending || actions.isConfirming ? (
+              <Spinner size="sm" />
+            ) : (
+              `Exit ${exitableBids.length === 1 ? "Bid" : `Next Bid`}`
+            )}
+          </Button>
+        )}
+        {claimableBids.length > 0 && exitableBids.length === 0 && (
           <Button
             variant="outline"
             size="sm"
             className="h-7 text-xs"
             onClick={() =>
-              actions.claimTokensBatch(claimableBids.map((b) => b.bidId))
+              claimableBids.length === 1
+                ? actions.claimTokens(claimableBids[0].bidId)
+                : actions.claimTokensBatch(claimableBids.map((b) => b.bidId))
             }
             disabled={actions.isPending || actions.isConfirming}
           >
             {actions.isPending || actions.isConfirming ? (
               <Spinner size="sm" />
             ) : (
-              `Claim All (${claimableBids.length})`
+              `Claim ${claimableBids.length === 1 ? "Tokens" : `All (${claimableBids.length})`}`
             )}
           </Button>
         )}
@@ -591,7 +620,8 @@ function UserBidsSection({
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {status === BidStatus.ACTIVE && phase === CCAPhase.LIVE && (
+                  {/* ACTIVE bids: Exit during LIVE, or Exit after auction ends (required before claiming) */}
+                  {status === BidStatus.ACTIVE && (phase === CCAPhase.LIVE || phase >= CCAPhase.ENDED) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -602,7 +632,8 @@ function UserBidsSection({
                       Exit
                     </Button>
                   )}
-                  {status === BidStatus.ACTIVE && phase === CCAPhase.CLAIMABLE && (
+                  {/* EXITED bids with tokens: Claim in CLAIMABLE phase */}
+                  {status === BidStatus.EXITED && bid.tokensFilled > BigInt(0) && phase === CCAPhase.CLAIMABLE && (
                     <Button
                       variant="ghost"
                       size="sm"

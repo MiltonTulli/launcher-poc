@@ -2,12 +2,10 @@
 
 import { formatUnits } from "viem";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { InfoRow } from "@/components/InfoRow";
 import { Clock } from "lucide-react";
 import { LaunchState } from "@/config/contracts";
 import { formatCountdown, ZERO_ADDRESS } from "@/lib/utils";
-import Link from "next/link";
 import type { AuctionInfo } from "./types";
 
 interface AuctionInfoCardProps {
@@ -15,6 +13,7 @@ interface AuctionInfoCardProps {
   currentState: LaunchState;
   explorerUrl: string;
   now: number;
+  ccaCurrencyRaised?: bigint;
 }
 
 export function AuctionInfoCard({
@@ -22,6 +21,7 @@ export function AuctionInfoCard({
   currentState,
   explorerUrl,
   now,
+  ccaCurrencyRaised,
 }: AuctionInfoCardProps) {
   if (currentState < LaunchState.AUCTION_ACTIVE || !auctionInfo) return null;
 
@@ -82,17 +82,11 @@ export function AuctionInfoCard({
             value={formatUnits(auctionInfo.reservePrice, 18)}
           />
           <InfoRow label="Tokens Sold" value={formatUnits(auctionInfo.tokensSold, 18)} />
-          <InfoRow label="Total Raised" value={formatUnits(auctionInfo.totalRaised, 18)} />
+          <InfoRow
+            label="Total Raised"
+            value={formatUnits(ccaCurrencyRaised ?? auctionInfo.totalRaised, 18)}
+          />
           <InfoRow label="Has Ended" value={auctionInfo.hasEnded ? "Yes" : "No"} />
-          {auctionInfo.cca && auctionInfo.cca !== ZERO_ADDRESS && (
-            <div className="sm:col-span-2 pt-2">
-              <Link href={`/sales/${auctionInfo.cca}`}>
-                <Button variant="outline" size="sm" className="w-full">
-                  View Token Sale
-                </Button>
-              </Link>
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>

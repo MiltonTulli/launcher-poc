@@ -32,6 +32,7 @@ export interface UseLaunchPreconditionsInput {
   distributionTimestampValue: bigint | undefined;
   auctionInfo: AuctionInfo | undefined;
   distInfo: DistributionInfo | undefined;
+  ccaCurrencyRaised: bigint | undefined;
   now: number;
 }
 
@@ -55,6 +56,7 @@ export function useLaunchPreconditions(
     distributionTimestampValue,
     auctionInfo,
     distInfo,
+    ccaCurrencyRaised,
     now,
   } = input;
 
@@ -268,13 +270,17 @@ export function useLaunchPreconditions(
         });
       }
 
+      // Use CCA's currencyRaised (read directly from CCA contract) as source of truth,
+      // falling back to orchestrator's totalRaised.
+      const raised = ccaCurrencyRaised ?? auctionInfo?.totalRaised;
       distChecks.push({
         id: "has-bids",
         label: "Auction received bids",
-        description: auctionInfo
-          ? `Total raised: ${formatUnits(auctionInfo.totalRaised, 18)}`
-          : "Loading auction info...",
-        met: !!(auctionInfo && auctionInfo.totalRaised > BigInt(0)),
+        description:
+          raised !== undefined
+            ? `Currency raised: ${formatUnits(raised, 18)}`
+            : "Loading auction info...",
+        met: raised !== undefined && raised > BigInt(0),
       });
 
       map["distributeLiquidity"] = distChecks;
@@ -309,12 +315,13 @@ export function useLaunchPreconditions(
         {
           id: "zero-bids",
           label: "Auction has zero bids",
-          description: auctionInfo
-            ? auctionInfo.totalRaised === BigInt(0)
-              ? "No bids received"
-              : `Auction has bids (raised: ${formatUnits(auctionInfo.totalRaised, 18)})`
-            : "Loading auction info...",
-          met: !!(auctionInfo && auctionInfo.totalRaised === BigInt(0)),
+          description:
+            raised !== undefined
+              ? raised === BigInt(0)
+                ? "No bids received"
+                : `Auction has bids (raised: ${formatUnits(raised, 18)})`
+              : "Loading auction info...",
+          met: raised !== undefined && raised === BigInt(0),
         },
       ];
 
@@ -380,6 +387,7 @@ export function useLaunchPreconditions(
     distributionTimestampValue,
     auctionInfo,
     distInfo,
+    ccaCurrencyRaised,
     now,
   ]);
 }

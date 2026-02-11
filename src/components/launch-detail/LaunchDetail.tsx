@@ -4,9 +4,12 @@ import { useState, useEffect } from "react";
 import { Address } from "viem";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { XCircle, RefreshCw } from "lucide-react";
+import { XCircle, RefreshCw, ArrowRight } from "lucide-react";
 import { getDraftForLaunch } from "@/lib/launch-draft";
 import { CommentsSection } from "@/components/CommentsSection";
+import Link from "next/link";
+import { LaunchState } from "@/config/contracts";
+import { ZERO_ADDRESS } from "@/lib/utils";
 
 import { useLaunchData } from "@/hooks/useLaunchData";
 import { useLaunchPreconditions } from "@/hooks/useLaunchPreconditions";
@@ -56,6 +59,7 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
     distributionTimestampValue: data.distributionTimestampValue,
     auctionInfo: data.auctionInfo,
     distInfo: data.distInfo,
+    ccaCurrencyRaised: data.ccaCurrencyRaised,
     now,
   });
 
@@ -89,6 +93,11 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
     );
   }
 
+  const showSaleCTA =
+    data.ccaAddress &&
+    data.ccaAddress !== ZERO_ADDRESS &&
+    data.currentState >= LaunchState.AUCTION_ACTIVE;
+
   return (
     <div className="space-y-6">
       <LaunchHeader
@@ -100,44 +109,75 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
         explorerUrl={data.explorerUrl}
         onRefresh={data.refetch}
       />
-      <LaunchInfoCard
-        launchInfo={data.launchInfo}
-        currentState={data.currentState}
-        explorerUrl={data.explorerUrl}
-      />
-      <AuctionInfoCard
-        auctionInfo={data.auctionInfo}
-        currentState={data.currentState}
-        explorerUrl={data.explorerUrl}
-        now={now}
-      />
-      <DistributionInfoCard
-        distInfo={data.distInfo}
-        launchInfo={data.launchInfo}
-        currentState={data.currentState}
-        isPermissionless={data.isPermissionless}
-        explorerUrl={data.explorerUrl}
-        now={now}
-      />
-      <ActionsPanel
-        address={address}
-        currentState={data.currentState}
-        connectedAddress={data.connectedAddress}
-        isOperator={data.isOperator}
-        isPermissionless={data.isPermissionless}
-        auctionTimeElapsed={data.auctionTimeElapsed}
-        preconditionsByAction={preconditionsByAction}
-        onRefresh={data.refetch}
-      />
-      <OperatorManagement
-        address={address}
-        isOperator={data.isOperator}
-        isPendingOperator={data.isPendingOperator}
-        pendingOp={data.pendingOp}
-        liquidityManagerValue={data.liquidityManagerValue}
-        onRefresh={data.refetch}
-      />
-      <CommentsSection resourceType="launch" resourceId={address} />
+
+      {/* Prominent "View Token Sale" CTA */}
+      {showSaleCTA && (
+        <Link href={`/sales/${data.ccaAddress}`} className="block">
+          <div className="flex items-center justify-between rounded-lg bg-primary px-5 py-4 text-primary-foreground transition-opacity hover:opacity-90">
+            <div>
+              <p className="text-lg font-semibold">Token Sale is Live</p>
+              <p className="text-sm opacity-80">
+                View the auction, place bids, and track progress
+              </p>
+            </div>
+            <ArrowRight className="h-5 w-5 shrink-0" />
+          </div>
+        </Link>
+      )}
+
+      {/* 2-column grid: info left, actions right */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Actions panel — order-first on mobile */}
+        <div className="lg:col-span-4 lg:order-last order-first space-y-4">
+          <div className="lg:sticky lg:top-20 space-y-4">
+            <ActionsPanel
+              address={address}
+              currentState={data.currentState}
+              connectedAddress={data.connectedAddress}
+              isOperator={data.isOperator}
+              isPermissionless={data.isPermissionless}
+              auctionTimeElapsed={data.auctionTimeElapsed}
+              preconditionsByAction={preconditionsByAction}
+              onRefresh={data.refetch}
+              ccaAddress={data.ccaAddress}
+              ccaIsGraduated={data.ccaIsGraduated}
+            />
+            <OperatorManagement
+              address={address}
+              isOperator={data.isOperator}
+              isPendingOperator={data.isPendingOperator}
+              pendingOp={data.pendingOp}
+              liquidityManagerValue={data.liquidityManagerValue}
+              onRefresh={data.refetch}
+            />
+          </div>
+        </div>
+
+        {/* Info cards */}
+        <div className="lg:col-span-8 space-y-6">
+          <LaunchInfoCard
+            launchInfo={data.launchInfo}
+            currentState={data.currentState}
+            explorerUrl={data.explorerUrl}
+          />
+          <AuctionInfoCard
+            auctionInfo={data.auctionInfo}
+            currentState={data.currentState}
+            explorerUrl={data.explorerUrl}
+            now={now}
+            ccaCurrencyRaised={data.ccaCurrencyRaised}
+          />
+          <DistributionInfoCard
+            distInfo={data.distInfo}
+            launchInfo={data.launchInfo}
+            currentState={data.currentState}
+            isPermissionless={data.isPermissionless}
+            explorerUrl={data.explorerUrl}
+            now={now}
+          />
+          <CommentsSection resourceType="launch" resourceId={address} />
+        </div>
+      </div>
     </div>
   );
 }
