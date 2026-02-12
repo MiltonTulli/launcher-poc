@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { ShoppingCart, RefreshCw, ExternalLink } from "lucide-react";
 import { useAuctions } from "@/hooks/useAuctions";
+import { useStandaloneAuctions } from "@/hooks/useStandaloneAuctions";
 import { shortenAddress, getExplorerUrl } from "@/lib/utils";
 import { CHAIN_METADATA } from "@/config/chains";
 import type { AuctionEntry } from "@/config/types";
@@ -41,8 +42,12 @@ function StatusBadge({ auction }: { auction: AuctionEntry }) {
 }
 
 export function AllAuctions() {
-  const { auctions, isLoading, refetch, chainId } = useAuctions();
+  const { auctions: factoryAuctions, isLoading: isLoadingFactory, refetch, chainId } = useAuctions();
+  const { auctions: standaloneAuctions, isLoading: isLoadingStandalone } = useStandaloneAuctions();
   const router = useRouter();
+
+  const isLoading = isLoadingFactory || isLoadingStandalone;
+  const auctions = [...factoryAuctions, ...standaloneAuctions];
 
   if (isLoading) {
     return (
@@ -108,7 +113,7 @@ export function AllAuctions() {
                 onClick={() => router.push(`/auctions/${auction.ccaAddress}?chain=${chainId}`)}
               >
                 <TableCell className="font-mono text-xs text-muted-foreground">
-                  #{auction.launchId.toString()}
+                  {auction.launchId === BigInt(0) ? "—" : `#${auction.launchId.toString()}`}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
