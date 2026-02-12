@@ -8,7 +8,7 @@ import { XCircle, RefreshCw, ArrowRight } from "lucide-react";
 import { getDraftForLaunch } from "@/lib/launch-draft";
 import { CommentsSection } from "@/components/CommentsSection";
 import Link from "next/link";
-import { LaunchState } from "@/config/contracts";
+import { LaunchState, LAUNCH_STATE_LABELS } from "@/config/contracts";
 import { ZERO_ADDRESS } from "@/lib/utils";
 
 import { useLaunchData } from "@/hooks/useLaunchData";
@@ -95,10 +95,12 @@ export function LaunchDetail({ address, chainId }: LaunchDetailProps) {
     );
   }
 
-  const showAuctionCTA =
+  const hasAuction =
     data.ccaAddress &&
     data.ccaAddress !== ZERO_ADDRESS &&
     data.currentState >= LaunchState.AUCTION_ACTIVE;
+
+  const isAuctionLive = data.currentState === LaunchState.AUCTION_ACTIVE;
 
   return (
     <div className="space-y-6">
@@ -114,16 +116,26 @@ export function LaunchDetail({ address, chainId }: LaunchDetailProps) {
       />
 
       {/* Prominent "View Token Auction" CTA */}
-      {showAuctionCTA && (
+      {hasAuction && (
         <Link href={`/auctions/${data.ccaAddress}?chain=${data.chainId}`} className="block">
-          <div className="flex items-center justify-between rounded-lg bg-primary px-5 py-4 text-primary-foreground transition-opacity hover:opacity-90">
+          <div className={`flex items-center justify-between rounded-lg px-5 py-4 transition-opacity hover:opacity-90 ${
+            isAuctionLive
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted border border-border text-foreground"
+          }`}>
             <div>
-              <p className="text-lg font-semibold">Token Auction is Live</p>
-              <p className="text-sm opacity-80">
-                View the auction, place bids, and track progress
+              <p className="text-lg font-semibold">
+                {isAuctionLive
+                  ? "Token Auction is Live"
+                  : `Token Auction — ${LAUNCH_STATE_LABELS[data.currentState] ?? "Ended"}`}
+              </p>
+              <p className={`text-sm ${isAuctionLive ? "opacity-80" : "text-muted-foreground"}`}>
+                {isAuctionLive
+                  ? "View the auction, place bids, and track progress"
+                  : "View auction results and claim tokens"}
               </p>
             </div>
-            <ArrowRight className="h-5 w-5 shrink-0" />
+            <ArrowRight className={`h-5 w-5 shrink-0 ${isAuctionLive ? "" : "text-muted-foreground"}`} />
           </div>
         </Link>
       )}

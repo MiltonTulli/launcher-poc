@@ -116,7 +116,7 @@ export function useLaunchData(address: Address, overrideChainId?: number): UseLa
   const distributionTimestampValue = results?.[11]?.result as bigint | undefined;
 
   // Derived values
-  const currentState = (directState ?? launchInfo?.state ?? 0) as LaunchState;
+  const onChainState = (directState ?? launchInfo?.state ?? 0) as LaunchState;
   const isOperator =
     !!connectedAddress &&
     !!launchInfo?.operator &&
@@ -219,10 +219,17 @@ export function useLaunchData(address: Address, overrideChainId?: number): UseLa
   // preconditions hook for countdown logic.
   const nowSeconds = Math.floor(Date.now() / 1000);
   const auctionTimeElapsed =
-    currentState === LaunchState.AUCTION_ACTIVE &&
+    onChainState === LaunchState.AUCTION_ACTIVE &&
     auctionEndTimeValue !== undefined &&
     Number(auctionEndTimeValue) > 0 &&
     nowSeconds >= Number(auctionEndTimeValue);
+
+  // Effective state: on-chain state may lag behind (e.g. still AUCTION_ACTIVE
+  // after time elapsed, waiting for a state-transition tx). Show the user
+  // an accurate state by factoring in auctionTimeElapsed.
+  const currentState = auctionTimeElapsed
+    ? LaunchState.AUCTION_ENDED
+    : onChainState;
 
   return {
     isLoading,
