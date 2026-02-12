@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { isAddress } from "viem";
+import { useSearchParams } from "next/navigation";
 import { AuctionDetail } from "@/components/auction-detail";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -12,6 +13,9 @@ export default function AuctionDetailPage({
   params: Promise<{ address: string }>;
 }) {
   const { address } = use(params);
+  const searchParams = useSearchParams();
+  const chainParam = searchParams.get("chain");
+  const chainId = chainParam ? Number(chainParam) : undefined;
 
   if (!isAddress(address)) {
     return (
@@ -43,7 +47,7 @@ export default function AuctionDetailPage({
         <ArrowLeft className="h-4 w-4" />
         Back to All Auctions
       </Link>
-      <AuctionDetail address={address as `0x${string}`} />
+      <AuctionDetail address={address as `0x${string}`} chainId={chainId} />
     </>
   );
 }

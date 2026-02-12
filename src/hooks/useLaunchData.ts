@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback } from "react";
 import { Address } from "viem";
-import { useAccount, useChainId, useReadContracts } from "wagmi";
+import { useAccount, useReadContracts } from "wagmi";
 import {
   TALLY_LAUNCH_ORCHESTRATOR_ABI,
   CCA_AUCTION_ABI,
@@ -12,6 +12,7 @@ import {
   LaunchState,
 } from "@/config/contracts";
 import { ZERO_ADDRESS, EXPLORER_URLS } from "@/lib/utils";
+import { useResolvedChainId } from "./useResolvedChainId";
 import type {
   LaunchInfo,
   DistributionInfo,
@@ -62,15 +63,15 @@ export interface UseLaunchDataReturn {
   explorerUrl: string;
 }
 
-export function useLaunchData(address: Address): UseLaunchDataReturn {
+export function useLaunchData(address: Address, overrideChainId?: number): UseLaunchDataReturn {
   const { address: connectedAddress } = useAccount();
-  const chainId = useChainId();
+  const chainId = useResolvedChainId(overrideChainId);
   const explorerUrl = EXPLORER_URLS[chainId] || "https://etherscan.io";
 
   // ============================================
   // Primary Multicall: orchestrator data
   // ============================================
-  const contractBase = { address, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI } as const;
+  const contractBase = { address, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, chainId } as const;
 
   const {
     data: results,
@@ -142,6 +143,7 @@ export function useLaunchData(address: Address): UseLaunchDataReturn {
       abi: typeof ERC20_ABI | typeof ACCESS_CONTROL_ABI;
       functionName: string;
       args: readonly unknown[];
+      chainId: number;
     }[] = [
       // [0] Token balance of orchestrator
       {
@@ -149,6 +151,7 @@ export function useLaunchData(address: Address): UseLaunchDataReturn {
         abi: ERC20_ABI,
         functionName: "balanceOf",
         args: [address],
+        chainId,
       },
       // [1] Token allowance from operator to orchestrator
       {
@@ -156,6 +159,7 @@ export function useLaunchData(address: Address): UseLaunchDataReturn {
         abi: ERC20_ABI,
         functionName: "allowance",
         args: [operatorAddress, address],
+        chainId,
       },
       // [2] hasRole(MINTER_ROLE, orchestrator) — may fail if token doesn't implement AccessControl
       {
@@ -163,6 +167,7 @@ export function useLaunchData(address: Address): UseLaunchDataReturn {
         abi: ACCESS_CONTROL_ABI,
         functionName: "hasRole",
         args: [MINTER_ROLE, address],
+        chainId,
       },
       // [3] Token balance of operator (for TRANSFER_FROM check in startAuction)
       {
@@ -170,6 +175,7 @@ export function useLaunchData(address: Address): UseLaunchDataReturn {
         abi: ERC20_ABI,
         functionName: "balanceOf",
         args: [operatorAddress],
+        chainId,
       },
     ];
     return contracts;
@@ -201,8 +207,8 @@ export function useLaunchData(address: Address): UseLaunchDataReturn {
   const { data: ccaResults } = useReadContracts({
     contracts: hasCCA
       ? [
-          { address: ccaAddress!, abi: CCA_AUCTION_ABI, functionName: "currencyRaised" as const },
-          { address: ccaAddress!, abi: CCA_AUCTION_ABI, functionName: "isGraduated" as const },
+          { address: ccaAddress!, abi: CCA_AUCTION_ABI, functionName: "currencyRaised" as const, chainId },
+          { address: ccaAddress!, abi: CCA_AUCTION_ABI, functionName: "isGraduated" as const, chainId },
         ]
       : [],
     query: { enabled: hasCCA, refetchInterval: 15000 },

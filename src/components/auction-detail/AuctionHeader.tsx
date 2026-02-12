@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { AddressLink } from "@/components/AddressLink";
 import { CCAPhase, CCA_PHASE_LABELS, CCA_PHASE_COLORS } from "@/config/contracts";
+import { CHAIN_METADATA } from "@/config/chains";
 
 interface AuctionHeaderProps {
   ccaAddress: Address;
@@ -46,6 +47,9 @@ export function AuctionHeader({
                 </span>
               )}
               {CCA_PHASE_LABELS[phase]}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-muted border border-border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+              {CHAIN_METADATA[chainId]?.name ?? `Chain ${chainId}`}
             </span>
           </div>
           <div className="flex items-center gap-2">

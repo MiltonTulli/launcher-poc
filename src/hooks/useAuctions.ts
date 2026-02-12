@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Address } from "viem";
-import { useChainId, useReadContract, useReadContracts } from "wagmi";
+import { useReadContract, useReadContracts } from "wagmi";
 import {
   TALLY_LAUNCH_FACTORY_ABI,
   TALLY_LAUNCH_FACTORY_ADDRESSES,
@@ -13,13 +13,14 @@ import {
 } from "@/config/contracts";
 import { ZERO_ADDRESS } from "@/lib/utils";
 import type { AuctionEntry } from "@/config/types";
+import { useResolvedChainId } from "./useResolvedChainId";
 
 /**
  * Fetches all CCA auctions by scanning launches and filtering those
  * with an active/ended auction (state >= AUCTION_ACTIVE) and a non-zero CCA address.
  */
-export function useAuctions() {
-  const chainId = useChainId();
+export function useAuctions(overrideChainId?: number) {
+  const chainId = useResolvedChainId(overrideChainId);
   const contractAddress = TALLY_LAUNCH_FACTORY_ADDRESSES[chainId];
   const enabled = !!contractAddress && contractAddress !== ZERO_ADDRESS;
 
@@ -32,6 +33,7 @@ export function useAuctions() {
     address: contractAddress,
     abi: TALLY_LAUNCH_FACTORY_ABI,
     functionName: "getLaunchCount",
+    chainId,
     query: { enabled, staleTime: 30_000 },
   });
 
@@ -45,8 +47,9 @@ export function useAuctions() {
       abi: TALLY_LAUNCH_FACTORY_ABI,
       functionName: "getLaunch" as const,
       args: [BigInt(i)] as const,
+      chainId,
     }));
-  }, [count, contractAddress]);
+  }, [count, contractAddress, chainId]);
 
   const { data: addressResults, isLoading: isLoadingAddresses } = useReadContracts({
     contracts: addressContracts,
@@ -65,12 +68,12 @@ export function useAuctions() {
   const detailContracts = useMemo(() => {
     if (launchAddresses.length === 0) return [];
     return launchAddresses.flatMap((addr) => [
-      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "state" as const },
-      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "token" as const },
-      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "launchId" as const },
-      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "getAuctionInfo" as const },
+      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "state" as const, chainId },
+      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "token" as const, chainId },
+      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "launchId" as const, chainId },
+      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "getAuctionInfo" as const, chainId },
     ]);
-  }, [launchAddresses]);
+  }, [launchAddresses, chainId]);
 
   const { data: detailResults, isLoading: isLoadingDetails } = useReadContracts({
     contracts: detailContracts,
@@ -122,8 +125,9 @@ export function useAuctions() {
       address: a.ccaAddress,
       abi: CCA_AUCTION_ABI,
       functionName: "currency" as const,
+      chainId,
     }));
-  }, [baseAuctions]);
+  }, [baseAuctions, chainId]);
 
   const { data: currencyResults, isLoading: isLoadingCurrency } = useReadContracts({
     contracts: currencyContracts,
@@ -156,10 +160,10 @@ export function useAuctions() {
   const metaContracts = useMemo(() => {
     if (uniqueAddresses.length === 0) return [];
     return uniqueAddresses.flatMap((addr) => [
-      { address: addr, abi: ERC20_ABI, functionName: "symbol" as const },
-      { address: addr, abi: ERC20_ABI, functionName: "decimals" as const },
+      { address: addr, abi: ERC20_ABI, functionName: "symbol" as const, chainId },
+      { address: addr, abi: ERC20_ABI, functionName: "decimals" as const, chainId },
     ]);
-  }, [uniqueAddresses]);
+  }, [uniqueAddresses, chainId]);
 
   const { data: metaResults, isLoading: isLoadingMeta } = useReadContracts({
     contracts: metaContracts,
@@ -197,5 +201,5 @@ export function useAuctions() {
 
   const isLoading = isLoadingCount || isLoadingAddresses || isLoadingDetails || isLoadingCurrency || isLoadingMeta;
 
-  return { auctions, isLoading, refetch };
+  return { auctions, isLoading, refetch, chainId };
 }

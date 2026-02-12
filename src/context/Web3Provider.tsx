@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { createAppKit } from "@reown/appkit/react";
 import { cookieToInitialState, WagmiProvider, type Config } from "wagmi";
 import { wagmiAdapter, projectId, networks } from "@/config/wagmi";
+import { ViewChainProvider } from "@/context/ViewChainProvider";
 
 // Set up queryClient
 const queryClient = new QueryClient();
@@ -53,9 +54,11 @@ export function Web3Provider({ children, cookies }: Web3ProviderProps) {
       initialState={initialState}
     >
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          {children}
-        </ThemeProvider>
+        <ViewChainProvider>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+            {children}
+          </ThemeProvider>
+        </ViewChainProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

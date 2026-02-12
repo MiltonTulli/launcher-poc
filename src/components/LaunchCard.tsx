@@ -12,6 +12,7 @@ interface LaunchCardProps {
   explorerUrl: string;
   actionLabel?: string;
   showOperator?: boolean;
+  chainId?: number;
 }
 
 export function LaunchCard({
@@ -19,6 +20,7 @@ export function LaunchCard({
   explorerUrl,
   actionLabel = "View Details",
   showOperator = false,
+  chainId,
 }: LaunchCardProps) {
   return (
     <Card>
@@ -86,7 +88,7 @@ export function LaunchCard({
             </a>
           </div>
           <div className="pt-3">
-            <Link href={`/launches/${launch.orchestratorAddress}`}>
+            <Link href={`/launches/${launch.orchestratorAddress}${chainId ? `?chain=${chainId}` : ""}`}>
               <Button variant="outline" size="sm" className="w-full">
                 <Settings className="h-4 w-4" />
                 {actionLabel}

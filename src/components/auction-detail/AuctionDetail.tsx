@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { XCircle, RefreshCw } from "lucide-react";
 import { useCCAData } from "@/hooks/useCCAData";
+import { SwitchChainGuard } from "@/components/SwitchChainGuard";
 
 import { AuctionHeader } from "./AuctionHeader";
 import { KeyMetrics } from "./KeyMetrics";
@@ -15,10 +16,11 @@ import { AuctionActionsPanel } from "./AuctionActionsPanel";
 
 interface AuctionDetailProps {
   address: Address;
+  chainId?: number;
 }
 
-export function AuctionDetail({ address }: AuctionDetailProps) {
-  const data = useCCAData(address);
+export function AuctionDetail({ address, chainId: chainIdProp }: AuctionDetailProps) {
+  const data = useCCAData(address, chainIdProp);
 
   if (data.isLoading) {
     return (
@@ -67,12 +69,14 @@ export function AuctionDetail({ address }: AuctionDetailProps) {
         {/* Control panel + admin actions — order-first on mobile */}
         <div className="lg:col-span-4 lg:order-last order-first space-y-4">
           <div className="lg:sticky lg:top-6 space-y-4">
-            <ControlPanel data={data} ccaAddress={address} />
-            <AuctionActionsPanel
-              ccaAddress={address}
-              phase={data.phase}
-              onRefresh={data.refetch}
-            />
+            <SwitchChainGuard requiredChainId={data.chainId}>
+              <ControlPanel data={data} ccaAddress={address} />
+              <AuctionActionsPanel
+                ccaAddress={address}
+                phase={data.phase}
+                onRefresh={data.refetch}
+              />
+            </SwitchChainGuard>
           </div>
         </div>
 

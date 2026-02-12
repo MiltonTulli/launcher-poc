@@ -1,6 +1,6 @@
-import { cookieStorage, createStorage } from "@wagmi/core";
+import { cookieStorage, createStorage, http } from "@wagmi/core";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { sepolia } from "@reown/appkit/networks";
+import { mainnet, sepolia, arbitrum } from "@reown/appkit/networks";
 import type { AppKitNetwork } from "@reown/appkit/networks";
 
 // Get projectId from https://cloud.reown.com
@@ -10,9 +10,11 @@ if (!projectId || projectId === "demo") {
   console.warn("WalletConnect projectId not set. Get one at https://cloud.reown.com");
 }
 
-// Define networks — Sepolia only for now (contracts deployed there)
+// Define networks — all supported chains
 export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
   sepolia,
+  mainnet,
+  arbitrum,
 ];
 
 // Create wagmi adapter
@@ -23,6 +25,11 @@ export const wagmiAdapter = new WagmiAdapter({
   ssr: true,
   projectId,
   networks,
+  transports: {
+    [mainnet.id]: http(),
+    [sepolia.id]: http(),
+    [arbitrum.id]: http(),
+  },
 });
 
 export const config = wagmiAdapter.wagmiConfig;

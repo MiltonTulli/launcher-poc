@@ -14,8 +14,7 @@ export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as cons
 export const EXPLORER_URLS: Record<number, string> = {
   1: "https://etherscan.io",
   11155111: "https://sepolia.etherscan.io",
-  8453: "https://basescan.org",
-  84532: "https://sepolia.basescan.org",
+  42161: "https://arbiscan.io",
 };
 
 export const BASIS_POINTS = BigInt(10_000);

@@ -5,11 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { useAccount, useChainId } from "wagmi";
-import { TALLY_LAUNCH_FACTORY_ADDRESSES } from "@/config/contracts";
-import { ZERO_ADDRESS } from "@/lib/utils";
-import { AlertCircle, Plus, List, Globe, ShoppingCart, type LucideIcon } from "lucide-react";
-import { NetworkBadge } from "@/components/NetworkBadge";
+import { useAccount } from "wagmi";
+import { Plus, List, Globe, ShoppingCart, type LucideIcon } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Footer } from "@/components/Footer";
 import { WalletButton } from "@/components/WalletButton";
@@ -28,13 +25,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { isConnected } = useAccount();
-  const chainId = useChainId();
   const pathname = usePathname();
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const contractAddress = TALLY_LAUNCH_FACTORY_ADDRESSES[chainId];
-  const isDeployed = !!contractAddress && contractAddress !== ZERO_ADDRESS;
 
   useEffect(() => {
     setMounted(true);
@@ -99,13 +93,6 @@ export default function DashboardLayout({
           </Link>
 
           <div className="flex items-center gap-3">
-            {!isDeployed && (
-              <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                <AlertCircle className="h-3.5 w-3.5" />
-                Unsupported network
-              </div>
-            )}
-            <NetworkBadge />
             <WalletButton />
             <ThemeToggle />
           </div>
@@ -206,21 +193,6 @@ export default function DashboardLayout({
         {/* Content Area */}
         <div className="flex-1 min-w-0">
           <div className="container mx-auto px-4 py-6 sm:py-10 max-w-6xl">
-            {/* Network Warning */}
-            {!isDeployed && (
-              <div className="max-w-2xl mx-auto mb-6">
-                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-sm font-medium text-amber-800">Network Not Supported</h3>
-                    <p className="text-xs text-amber-700 mt-1">
-                      TallyLaunchFactory is not deployed on this network. Please switch to a supported network.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {children}
           </div>
         </div>

@@ -2,10 +2,11 @@
 
 import { useMemo, useCallback } from "react";
 import { Address } from "viem";
-import { useAccount, useChainId, useReadContracts, useBlockNumber } from "wagmi";
+import { useAccount, useReadContracts, useBlockNumber } from "wagmi";
 import { CCA_AUCTION_ABI, ERC20_EXTENDED_ABI, PERMIT2_ABI, PERMIT2_ADDRESS } from "@/config/contracts";
 import { CCAPhase, BidStatus } from "@/config/enums";
 import { ZERO_ADDRESS, EXPLORER_URLS } from "@/lib/utils";
+import { useResolvedChainId } from "./useResolvedChainId";
 import { getCCAPhase } from "@/lib/q96";
 import type { CCABidStruct, CCABidEntry } from "@/config/types";
 
@@ -57,19 +58,19 @@ export interface UseCCADataReturn {
   explorerUrl: string;
 }
 
-export function useCCAData(ccaAddress: Address): UseCCADataReturn {
+export function useCCAData(ccaAddress: Address, overrideChainId?: number): UseCCADataReturn {
   const { address: connectedAddress } = useAccount();
-  const chainId = useChainId();
+  const chainId = useResolvedChainId(overrideChainId);
   const explorerUrl = EXPLORER_URLS[chainId] || "https://etherscan.io";
 
   // Track current block
-  const { data: currentBlockData } = useBlockNumber({ watch: true });
+  const { data: currentBlockData } = useBlockNumber({ watch: true, chainId });
   const currentBlock = currentBlockData ?? BigInt(0);
 
   // ============================================
   // Primary Multicall: CCA static + dynamic params
   // ============================================
-  const ccaBase = { address: ccaAddress, abi: CCA_AUCTION_ABI } as const;
+  const ccaBase = { address: ccaAddress, abi: CCA_AUCTION_ABI, chainId } as const;
 
   const {
     data: primaryResults,
@@ -133,12 +134,12 @@ export function useCCAData(ccaAddress: Address): UseCCADataReturn {
   const metadataContracts = useMemo(() => {
     if (!tokenAddress || !currencyAddress) return [];
     return [
-      { address: tokenAddress, abi: ERC20_EXTENDED_ABI, functionName: "symbol" as const },
-      { address: tokenAddress, abi: ERC20_EXTENDED_ABI, functionName: "decimals" as const },
-      { address: currencyAddress, abi: ERC20_EXTENDED_ABI, functionName: "symbol" as const },
-      { address: currencyAddress, abi: ERC20_EXTENDED_ABI, functionName: "decimals" as const },
+      { address: tokenAddress, abi: ERC20_EXTENDED_ABI, functionName: "symbol" as const, chainId },
+      { address: tokenAddress, abi: ERC20_EXTENDED_ABI, functionName: "decimals" as const, chainId },
+      { address: currencyAddress, abi: ERC20_EXTENDED_ABI, functionName: "symbol" as const, chainId },
+      { address: currencyAddress, abi: ERC20_EXTENDED_ABI, functionName: "decimals" as const, chainId },
     ];
-  }, [tokenAddress, currencyAddress]);
+  }, [tokenAddress, currencyAddress, chainId]);
 
   const { data: metadataResults, isLoading: isMetadataLoading } = useReadContracts({
     contracts: metadataContracts as never,
@@ -165,6 +166,7 @@ export function useCCAData(ccaAddress: Address): UseCCADataReturn {
         abi: ERC20_EXTENDED_ABI,
         functionName: "balanceOf" as const,
         args: [connectedAddress],
+        chainId,
       },
       // [1] ERC20 allowance: user → Permit2
       {
@@ -172,6 +174,7 @@ export function useCCAData(ccaAddress: Address): UseCCADataReturn {
         abi: ERC20_EXTENDED_ABI,
         functionName: "allowance" as const,
         args: [connectedAddress, PERMIT2_ADDRESS],
+        chainId,
       },
       // [2] Permit2 allowance: user → CCA (returns [amount, expiration, nonce])
       {
@@ -179,9 +182,10 @@ export function useCCAData(ccaAddress: Address): UseCCADataReturn {
         abi: PERMIT2_ABI,
         functionName: "allowance" as const,
         args: [connectedAddress, currencyAddress, ccaAddress],
+        chainId,
       },
     ];
-  }, [connectedAddress, currencyAddress, ccaAddress]);
+  }, [connectedAddress, currencyAddress, ccaAddress, chainId]);
 
   const { data: userResults } = useReadContracts({
     contracts: userContracts as never,
@@ -209,8 +213,9 @@ export function useCCAData(ccaAddress: Address): UseCCADataReturn {
       abi: CCA_AUCTION_ABI,
       functionName: "bids" as const,
       args: [BigInt(i)] as const,
+      chainId,
     }));
-  }, [bidCount, ccaAddress]);
+  }, [bidCount, ccaAddress, chainId]);
 
   const { data: bidResults } = useReadContracts({
     contracts: bidContracts,

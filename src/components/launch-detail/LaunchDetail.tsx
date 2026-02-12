@@ -13,6 +13,7 @@ import { ZERO_ADDRESS } from "@/lib/utils";
 
 import { useLaunchData } from "@/hooks/useLaunchData";
 import { useLaunchPreconditions } from "@/hooks/useLaunchPreconditions";
+import { SwitchChainGuard } from "@/components/SwitchChainGuard";
 
 import { LaunchHeader } from "./LaunchHeader";
 import { LaunchInfoCard } from "./LaunchInfoCard";
@@ -23,9 +24,10 @@ import { OperatorManagement } from "./OperatorManagement";
 
 interface LaunchDetailProps {
   address: Address;
+  chainId?: number;
 }
 
-export function LaunchDetail({ address }: LaunchDetailProps) {
+export function LaunchDetail({ address, chainId }: LaunchDetailProps) {
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
   const [linkedDraftId, setLinkedDraftId] = useState<string | null>(null);
 
@@ -40,7 +42,7 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
     getDraftForLaunch(address).then(setLinkedDraftId).catch(() => {});
   }, [address]);
 
-  const data = useLaunchData(address);
+  const data = useLaunchData(address, chainId);
 
   const preconditionsByAction = useLaunchPreconditions({
     currentState: data.currentState,
@@ -107,12 +109,13 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
         isOperator={data.isOperator}
         linkedDraftId={linkedDraftId}
         explorerUrl={data.explorerUrl}
+        chainId={data.chainId}
         onRefresh={data.refetch}
       />
 
       {/* Prominent "View Token Auction" CTA */}
       {showAuctionCTA && (
-        <Link href={`/auctions/${data.ccaAddress}`} className="block">
+        <Link href={`/auctions/${data.ccaAddress}?chain=${data.chainId}`} className="block">
           <div className="flex items-center justify-between rounded-lg bg-primary px-5 py-4 text-primary-foreground transition-opacity hover:opacity-90">
             <div>
               <p className="text-lg font-semibold">Token Auction is Live</p>
@@ -130,26 +133,28 @@ export function LaunchDetail({ address }: LaunchDetailProps) {
         {/* Actions panel — order-first on mobile */}
         <div className="lg:col-span-4 lg:order-last order-first space-y-4">
           <div className="lg:sticky lg:top-20 space-y-4">
-            <ActionsPanel
-              address={address}
-              currentState={data.currentState}
-              connectedAddress={data.connectedAddress}
-              isOperator={data.isOperator}
-              isPermissionless={data.isPermissionless}
-              auctionTimeElapsed={data.auctionTimeElapsed}
-              preconditionsByAction={preconditionsByAction}
-              onRefresh={data.refetch}
-              ccaAddress={data.ccaAddress}
-              ccaIsGraduated={data.ccaIsGraduated}
-            />
-            <OperatorManagement
-              address={address}
-              isOperator={data.isOperator}
-              isPendingOperator={data.isPendingOperator}
-              pendingOp={data.pendingOp}
-              liquidityManagerValue={data.liquidityManagerValue}
-              onRefresh={data.refetch}
-            />
+            <SwitchChainGuard requiredChainId={data.chainId}>
+              <ActionsPanel
+                address={address}
+                currentState={data.currentState}
+                connectedAddress={data.connectedAddress}
+                isOperator={data.isOperator}
+                isPermissionless={data.isPermissionless}
+                auctionTimeElapsed={data.auctionTimeElapsed}
+                preconditionsByAction={preconditionsByAction}
+                onRefresh={data.refetch}
+                ccaAddress={data.ccaAddress}
+                ccaIsGraduated={data.ccaIsGraduated}
+              />
+              <OperatorManagement
+                address={address}
+                isOperator={data.isOperator}
+                isPendingOperator={data.isPendingOperator}
+                pendingOp={data.pendingOp}
+                liquidityManagerValue={data.liquidityManagerValue}
+                onRefresh={data.refetch}
+              />
+            </SwitchChainGuard>
           </div>
         </div>
 

@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { formatUnits } from "viem";
-import { useChainId } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -16,6 +15,7 @@ import {
 import { ShoppingCart, RefreshCw, ExternalLink } from "lucide-react";
 import { useAuctions } from "@/hooks/useAuctions";
 import { shortenAddress, getExplorerUrl } from "@/lib/utils";
+import { CHAIN_METADATA } from "@/config/chains";
 import type { AuctionEntry } from "@/config/types";
 
 function StatusBadge({ auction }: { auction: AuctionEntry }) {
@@ -41,9 +41,8 @@ function StatusBadge({ auction }: { auction: AuctionEntry }) {
 }
 
 export function AllAuctions() {
-  const { auctions, isLoading, refetch } = useAuctions();
+  const { auctions, isLoading, refetch, chainId } = useAuctions();
   const router = useRouter();
-  const chainId = useChainId();
 
   if (isLoading) {
     return (
@@ -72,9 +71,14 @@ export function AllAuctions() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">All Auctions</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold">All Auctions</h1>
+            <span className="inline-flex items-center rounded-full bg-muted border border-border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+              {CHAIN_METADATA[chainId]?.name ?? `Chain ${chainId}`}
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
-            {auctions.length} auction{auctions.length !== 1 ? "s" : ""} on this network
+            {auctions.length} auction{auctions.length !== 1 ? "s" : ""}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -93,6 +97,7 @@ export function AllAuctions() {
               <TableHead className="text-right">Total Raised</TableHead>
               <TableHead className="text-right">Current Price</TableHead>
               <TableHead className="text-center">Status</TableHead>
+              <TableHead className="text-center">Network</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -100,7 +105,7 @@ export function AllAuctions() {
               <TableRow
                 key={auction.ccaAddress}
                 className="cursor-pointer hover:bg-muted/50"
-                onClick={() => router.push(`/auctions/${auction.ccaAddress}`)}
+                onClick={() => router.push(`/auctions/${auction.ccaAddress}?chain=${chainId}`)}
               >
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   #{auction.launchId.toString()}
@@ -150,6 +155,11 @@ export function AllAuctions() {
                 </TableCell>
                 <TableCell className="text-center">
                   <StatusBadge auction={auction} />
+                </TableCell>
+                <TableCell className="text-center">
+                  <span className="inline-flex items-center rounded-full bg-muted border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {CHAIN_METADATA[chainId]?.shortName ?? chainId}
+                  </span>
                 </TableCell>
               </TableRow>
             ))}

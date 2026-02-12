@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatUnits } from "viem";
-import { useChainId } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -18,11 +17,11 @@ import { Globe, RefreshCw, Plus, ExternalLink, ArrowRight } from "lucide-react";
 import { useLaunches } from "@/hooks/useLaunches";
 import { LAUNCH_STATE_LABELS, LAUNCH_STATE_COLORS } from "@/config/contracts";
 import { shortenAddress, getExplorerUrl } from "@/lib/utils";
+import { CHAIN_METADATA } from "@/config/chains";
 
 export function AllLaunches() {
-  const { launches, isLoading, refetch } = useLaunches();
+  const { launches, isLoading, refetch, chainId } = useLaunches();
   const router = useRouter();
-  const chainId = useChainId();
 
   if (isLoading) {
     return (
@@ -57,9 +56,14 @@ export function AllLaunches() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">All Launches</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold">All Launches</h1>
+            <span className="inline-flex items-center rounded-full bg-muted border border-border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+              {CHAIN_METADATA[chainId]?.name ?? `Chain ${chainId}`}
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
-            {launches.length} launch{launches.length !== 1 ? "es" : ""} on this network
+            {launches.length} launch{launches.length !== 1 ? "es" : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -97,6 +101,7 @@ export function AllLaunches() {
               <TableHead>Operator</TableHead>
               <TableHead className="text-right">Token Amount</TableHead>
               <TableHead className="text-center">Status</TableHead>
+              <TableHead className="text-center">Network</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -104,7 +109,7 @@ export function AllLaunches() {
               <TableRow
                 key={launch.orchestratorAddress}
                 className="cursor-pointer hover:bg-muted/50"
-                onClick={() => router.push(`/launches/${launch.orchestratorAddress}`)}
+                onClick={() => router.push(`/launches/${launch.orchestratorAddress}?chain=${chainId}`)}
               >
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   #{launch.launchId.toString()}
@@ -153,6 +158,11 @@ export function AllLaunches() {
                     }`}
                   >
                     {LAUNCH_STATE_LABELS[launch.state]}
+                  </span>
+                </TableCell>
+                <TableCell className="text-center">
+                  <span className="inline-flex items-center rounded-full bg-muted border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {CHAIN_METADATA[chainId]?.shortName ?? chainId}
                   </span>
                 </TableCell>
               </TableRow>

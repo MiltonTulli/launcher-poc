@@ -1,15 +1,15 @@
 "use client";
 
-import { useChainId } from "wagmi";
 import { ExternalLink, Factory, Github } from "lucide-react";
 import { TALLY_LAUNCH_FACTORY_ADDRESSES } from "@/config/contracts";
 import { ZERO_ADDRESS, shortenAddress, getExplorerUrl } from "@/lib/utils";
+import { useViewChain } from "@/context/ViewChainProvider";
 
 const FACTORY_SOURCE_URL =
   "https://github.com/withtally/orchestrator/blob/main/orchestrator/src/TallyLaunchFactory.sol";
 
 export function FactoryBanner() {
-  const chainId = useChainId();
+  const { viewChainId: chainId } = useViewChain();
   const address = TALLY_LAUNCH_FACTORY_ADDRESSES[chainId];
 
   if (!address || address === ZERO_ADDRESS) return null;

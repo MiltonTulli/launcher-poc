@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { useAccount, useChainId } from "wagmi";
+import { useAccount } from "wagmi";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -11,11 +11,12 @@ import { listDrafts, deleteDraft, type DraftIndexEntry } from "@/lib/drafts";
 import { useLaunches } from "@/hooks/useLaunches";
 import { LaunchCard } from "@/components/LaunchCard";
 import { EXPLORER_URLS } from "@/lib/utils";
+import { useViewChain } from "@/context/ViewChainProvider";
 
 export function MyLaunches() {
   const { address } = useAccount();
-  const chainId = useChainId();
-  const explorerUrl = EXPLORER_URLS[chainId] || "https://etherscan.io";
+  const { viewChainId } = useViewChain();
+  const explorerUrl = EXPLORER_URLS[viewChainId] || "https://etherscan.io";
 
   // ============================================
   // Drafts from server
@@ -198,6 +199,7 @@ export function MyLaunches() {
                 launch={launch}
                 explorerUrl={explorerUrl}
                 actionLabel="Manage"
+                chainId={viewChainId}
               />
             ))}
           </div>

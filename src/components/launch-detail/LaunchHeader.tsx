@@ -15,6 +15,7 @@ import {
   LAUNCH_STATE_LABELS,
   LAUNCH_STATE_COLORS,
 } from "@/config/contracts";
+import { CHAIN_METADATA } from "@/config/chains";
 import type { LaunchInfo } from "./types";
 
 interface LaunchHeaderProps {
@@ -24,6 +25,7 @@ interface LaunchHeaderProps {
   isOperator: boolean;
   linkedDraftId: string | null;
   explorerUrl: string;
+  chainId: number;
   onRefresh: () => void;
 }
 
@@ -34,6 +36,7 @@ export function LaunchHeader({
   isOperator,
   linkedDraftId,
   explorerUrl,
+  chainId,
   onRefresh,
 }: LaunchHeaderProps) {
   return (
@@ -45,6 +48,9 @@ export function LaunchHeader({
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${LAUNCH_STATE_COLORS[currentState]}`}
           >
             {LAUNCH_STATE_LABELS[currentState]}
+          </span>
+          <span className="inline-flex items-center rounded-full bg-muted border border-border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+            {CHAIN_METADATA[chainId]?.name ?? `Chain ${chainId}`}
           </span>
         </div>
         <div className="flex items-center gap-2">

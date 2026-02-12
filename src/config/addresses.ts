@@ -30,6 +30,10 @@ export const SEPOLIA_CONTRACTS = {
 export const TALLY_LAUNCH_FACTORY_ADDRESSES: Record<number, Address> = {
   1: "0x0000000000000000000000000000000000000000", // Mainnet - TBD
   11155111: SEPOLIA_CONTRACTS.TallyLaunchFactory, // Sepolia
-  8453: "0x0000000000000000000000000000000000000000", // Base - TBD
-  84532: "0x0000000000000000000000000000000000000000", // Base Sepolia - TBD
+  42161: "0x0000000000000000000000000000000000000000", // Arbitrum - TBD
 };
+
+/** All chain IDs we support in the UI (regardless of deployment status). */
+export const SUPPORTED_CHAIN_IDS: number[] = Object.keys(
+  TALLY_LAUNCH_FACTORY_ADDRESSES
+).map(Number);

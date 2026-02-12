@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Address } from "viem";
-import { useChainId, useReadContract, useReadContracts } from "wagmi";
+import { useReadContract, useReadContracts } from "wagmi";
 import {
   TALLY_LAUNCH_FACTORY_ABI,
   TALLY_LAUNCH_FACTORY_ADDRESSES,
@@ -11,6 +11,7 @@ import {
   LaunchState,
 } from "@/config/contracts";
 import { ZERO_ADDRESS } from "@/lib/utils";
+import { useResolvedChainId } from "./useResolvedChainId";
 
 export interface LaunchEntry {
   orchestratorAddress: Address;
@@ -27,8 +28,8 @@ export interface LaunchEntry {
  * Fetches all launches from the factory using launchCount + getLaunch(id).
  * Returns launch details via multicall on each orchestrator.
  */
-export function useLaunches() {
-  const chainId = useChainId();
+export function useLaunches(overrideChainId?: number) {
+  const chainId = useResolvedChainId(overrideChainId);
   const contractAddress = TALLY_LAUNCH_FACTORY_ADDRESSES[chainId];
   const enabled = !!contractAddress && contractAddress !== ZERO_ADDRESS;
 
@@ -41,6 +42,7 @@ export function useLaunches() {
     address: contractAddress,
     abi: TALLY_LAUNCH_FACTORY_ABI,
     functionName: "getLaunchCount",
+    chainId,
     query: { enabled, staleTime: 30_000 },
   });
 
@@ -54,8 +56,9 @@ export function useLaunches() {
       abi: TALLY_LAUNCH_FACTORY_ABI,
       functionName: "getLaunch" as const,
       args: [BigInt(i)] as const,
+      chainId,
     }));
-  }, [count, contractAddress]);
+  }, [count, contractAddress, chainId]);
 
   const { data: addressResults, isLoading: isLoadingAddresses } = useReadContracts({
     contracts: addressContracts,
@@ -75,13 +78,13 @@ export function useLaunches() {
   const detailContracts = useMemo(() => {
     if (launchAddresses.length === 0) return [];
     return launchAddresses.flatMap((addr) => [
-      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "operator" as const },
-      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "state" as const },
-      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "token" as const },
-      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "launchId" as const },
-      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "tokenAmount" as const },
+      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "operator" as const, chainId },
+      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "state" as const, chainId },
+      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "token" as const, chainId },
+      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "launchId" as const, chainId },
+      { address: addr, abi: TALLY_LAUNCH_ORCHESTRATOR_ABI, functionName: "tokenAmount" as const, chainId },
     ]);
-  }, [launchAddresses]);
+  }, [launchAddresses, chainId]);
 
   const { data: detailResults, isLoading: isLoadingDetails } = useReadContracts({
     contracts: detailContracts,
@@ -126,10 +129,10 @@ export function useLaunches() {
   const metaContracts = useMemo(() => {
     if (uniqueTokens.length === 0) return [];
     return uniqueTokens.flatMap((addr) => [
-      { address: addr, abi: ERC20_ABI, functionName: "symbol" as const },
-      { address: addr, abi: ERC20_ABI, functionName: "decimals" as const },
+      { address: addr, abi: ERC20_ABI, functionName: "symbol" as const, chainId },
+      { address: addr, abi: ERC20_ABI, functionName: "decimals" as const, chainId },
     ]);
-  }, [uniqueTokens]);
+  }, [uniqueTokens, chainId]);
 
   const { data: metaResults, isLoading: isLoadingMeta } = useReadContracts({
     contracts: metaContracts,
@@ -163,5 +166,5 @@ export function useLaunches() {
 
   const isLoading = isLoadingCount || isLoadingAddresses || isLoadingDetails || isLoadingMeta;
 
-  return { launches, isLoading, refetch };
+  return { launches, isLoading, refetch, chainId };
 }
