@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatUnits } from "viem";
@@ -13,15 +14,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Globe, RefreshCw, Plus, ExternalLink, ArrowRight } from "lucide-react";
+import { Globe, RefreshCw, Plus, ExternalLink, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLaunches } from "@/hooks/useLaunches";
 import { LAUNCH_STATE_LABELS, LAUNCH_STATE_COLORS } from "@/config/contracts";
 import { shortenAddress, getExplorerUrl } from "@/lib/utils";
 import { CHAIN_METADATA } from "@/config/chains";
 
+const ROWS_PER_PAGE = 20;
+
 export function AllLaunches() {
   const { launches, isLoading, refetch, chainId } = useLaunches();
   const router = useRouter();
+  const [page, setPage] = useState(0);
+
+  const sorted = [...launches].reverse();
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ROWS_PER_PAGE));
+  const start = page * ROWS_PER_PAGE;
+  const pageRows = sorted.slice(start, start + ROWS_PER_PAGE);
 
   if (isLoading) {
     return (
@@ -105,7 +114,7 @@ export function AllLaunches() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {[...launches].reverse().map((launch) => (
+            {pageRows.map((launch) => (
               <TableRow
                 key={launch.orchestratorAddress}
                 className="cursor-pointer hover:bg-muted/50"
@@ -144,7 +153,7 @@ export function AllLaunches() {
                     href={getExplorerUrl(chainId, "address", launch.operator)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+                    className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {shortenAddress(launch.operator)}
@@ -175,6 +184,34 @@ export function AllLaunches() {
             ))}
           </TableBody>
         </Table>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-border">
+            <span className="text-xs text-muted-foreground">
+              {start + 1}–{Math.min(start + ROWS_PER_PAGE, sorted.length)} of {sorted.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-xs text-muted-foreground px-2">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

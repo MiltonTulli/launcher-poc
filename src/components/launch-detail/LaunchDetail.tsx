@@ -175,6 +175,8 @@ export function LaunchDetail({ address, chainId }: LaunchDetailProps) {
             launchInfo={data.launchInfo}
             currentState={data.currentState}
             explorerUrl={data.explorerUrl}
+            tokenSymbol={data.tokenSymbol}
+            paymentTokenSymbol={data.paymentTokenSymbol}
           />
           <AuctionInfoCard
             auctionInfo={data.auctionInfo}

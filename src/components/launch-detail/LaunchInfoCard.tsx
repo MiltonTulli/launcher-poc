@@ -15,9 +15,11 @@ interface LaunchInfoCardProps {
   launchInfo: LaunchInfo;
   currentState: LaunchState;
   explorerUrl: string;
+  tokenSymbol?: string;
+  paymentTokenSymbol?: string;
 }
 
-export function LaunchInfoCard({ launchInfo, currentState, explorerUrl }: LaunchInfoCardProps) {
+export function LaunchInfoCard({ launchInfo, currentState, explorerUrl, tokenSymbol, paymentTokenSymbol }: LaunchInfoCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -33,12 +35,13 @@ export function LaunchInfoCard({ launchInfo, currentState, explorerUrl }: Launch
               {LAUNCH_STATE_LABELS[currentState]}
             </span>
           </div>
-          <InfoRow label="Token" value={launchInfo.token} isAddress explorerUrl={explorerUrl} />
+          <InfoRow label="Token" value={launchInfo.token} isAddress explorerUrl={explorerUrl} prefix={tokenSymbol} />
           <InfoRow
             label="Payment Token"
             value={launchInfo.paymentToken}
             isAddress
             explorerUrl={explorerUrl}
+            prefix={paymentTokenSymbol}
           />
           <InfoRow
             label="Operator"

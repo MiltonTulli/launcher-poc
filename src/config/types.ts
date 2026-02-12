@@ -259,6 +259,7 @@ export interface AuctionEntry {
   token: Address;
   launchId: bigint;
   launchState: number;
+  chainId: number;
   startTime: bigint;
   endTime: bigint;
   currentPrice: bigint;

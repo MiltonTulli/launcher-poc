@@ -137,12 +137,14 @@ export function AuctionInfoTabs({ data }: AuctionInfoTabsProps) {
                   value={tokenAddress ?? ""}
                   isAddress
                   explorerUrl={explorerUrl}
+                  prefix={tokenSymbol}
                 />
                 <InfoRow
                   label="Currency"
                   value={currencyAddress ?? ""}
                   isAddress
                   explorerUrl={explorerUrl}
+                  prefix={currencySymbol}
                 />
                 <InfoRow
                   label="Tokens for Auction"
@@ -404,6 +406,7 @@ export function AuctionInfoTabs({ data }: AuctionInfoTabsProps) {
                     value={tokenAddress ?? ""}
                     isAddress
                     explorerUrl={explorerUrl}
+                    prefix={tokenSymbol}
                   />
                   <InfoRow
                     label="Symbol"
@@ -434,6 +437,7 @@ export function AuctionInfoTabs({ data }: AuctionInfoTabsProps) {
                     value={currencyAddress ?? ""}
                     isAddress
                     explorerUrl={explorerUrl}
+                    prefix={currencySymbol}
                   />
                   <InfoRow
                     label="Symbol"

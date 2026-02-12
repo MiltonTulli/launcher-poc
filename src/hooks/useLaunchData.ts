@@ -7,6 +7,7 @@ import {
   TALLY_LAUNCH_ORCHESTRATOR_ABI,
   CCA_AUCTION_ABI,
   ERC20_ABI,
+  ERC20_EXTENDED_ABI,
   ACCESS_CONTROL_ABI,
   MINTER_ROLE,
   LaunchState,
@@ -50,6 +51,10 @@ export interface UseLaunchDataReturn {
   hasMinterRole: boolean | undefined;
   operatorTokenBalance: bigint | undefined;
   tokenLoading: boolean;
+
+  // ERC20 metadata
+  tokenSymbol: string | undefined;
+  paymentTokenSymbol: string | undefined;
 
   // CCA supplemental data (read directly from CCA contract)
   ccaAddress: Address | undefined;
@@ -196,6 +201,33 @@ export function useLaunchData(address: Address, overrideChainId?: number): UseLa
   const operatorTokenBalance = tr?.[3]?.result as bigint | undefined;
 
   // ============================================
+  // ERC20 Metadata: token + paymentToken symbols
+  // ============================================
+  const paymentTokenAddress = launchInfo?.paymentToken;
+  const erc20MetaContracts = useMemo(() => {
+    const calls: { address: Address; abi: typeof ERC20_EXTENDED_ABI; functionName: "symbol"; chainId: number }[] = [];
+    if (tokenAddress && tokenAddress !== ZERO_ADDRESS) {
+      calls.push({ address: tokenAddress, abi: ERC20_EXTENDED_ABI, functionName: "symbol", chainId });
+    }
+    if (paymentTokenAddress && paymentTokenAddress !== ZERO_ADDRESS) {
+      calls.push({ address: paymentTokenAddress, abi: ERC20_EXTENDED_ABI, functionName: "symbol", chainId });
+    }
+    return calls;
+  }, [tokenAddress, paymentTokenAddress, chainId]);
+
+  const { data: erc20MetaResults } = useReadContracts({
+    contracts: erc20MetaContracts,
+    query: { enabled: erc20MetaContracts.length > 0, staleTime: 60_000 },
+  });
+
+  const tokenSymbol = erc20MetaContracts.length > 0
+    ? (erc20MetaResults?.[0]?.result as string | undefined)
+    : undefined;
+  const paymentTokenSymbol = erc20MetaContracts.length > 1
+    ? (erc20MetaResults?.[1]?.result as string | undefined)
+    : undefined;
+
+  // ============================================
   // CCA Supplemental: read currencyRaised directly from CCA
   // ============================================
   const ccaAddress = auctionInfo?.cca;
@@ -251,6 +283,9 @@ export function useLaunchData(address: Address, overrideChainId?: number): UseLa
     isOperator,
     isPendingOperator,
     auctionTimeElapsed,
+
+    tokenSymbol,
+    paymentTokenSymbol,
 
     orchestratorTokenBalance,
     operatorTokenAllowance,

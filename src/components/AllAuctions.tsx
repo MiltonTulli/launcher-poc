@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatUnits } from "viem";
 import { Button } from "@/components/ui/button";
@@ -12,12 +13,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShoppingCart, RefreshCw, ExternalLink } from "lucide-react";
+import { ShoppingCart, RefreshCw, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuctions } from "@/hooks/useAuctions";
 import { useStandaloneAuctions } from "@/hooks/useStandaloneAuctions";
+import { useCommunityAuctions } from "@/hooks/useCommunityAuctions";
 import { shortenAddress, getExplorerUrl } from "@/lib/utils";
 import { CHAIN_METADATA } from "@/config/chains";
+import { SubmitAuctionForm } from "@/components/SubmitAuctionForm";
 import type { AuctionEntry } from "@/config/types";
+
+const ROWS_PER_PAGE = 20;
 
 /** Format a bigint amount with up to `maxDecimals` fractional digits; prefix with ~ if truncated. */
 function formatAmount(value: bigint, decimals: number, maxDecimals = 4): string {
@@ -54,12 +59,18 @@ function StatusBadge({ auction }: { auction: AuctionEntry }) {
 }
 
 export function AllAuctions() {
-  const { auctions: factoryAuctions, isLoading: isLoadingFactory, refetch, chainId } = useAuctions();
-  const { auctions: standaloneAuctions, isLoading: isLoadingStandalone } = useStandaloneAuctions();
+  const { auctions: factoryAuctions, isLoading: isLoadingFactory, refetch } = useAuctions();
+  const { addresses: communityAddresses, isLoading: isLoadingCommunity, refetch: refetchCommunity } = useCommunityAuctions();
+  const { auctions: standaloneAuctions, isLoading: isLoadingStandalone } = useStandaloneAuctions(communityAddresses);
   const router = useRouter();
+  const [page, setPage] = useState(0);
 
-  const isLoading = isLoadingFactory || isLoadingStandalone;
+  const isLoading = isLoadingFactory || isLoadingStandalone || isLoadingCommunity;
   const auctions = [...factoryAuctions, ...standaloneAuctions];
+  const sorted = [...auctions].reverse();
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ROWS_PER_PAGE));
+  const start = page * ROWS_PER_PAGE;
+  const pageRows = sorted.slice(start, start + ROWS_PER_PAGE);
 
   if (isLoading) {
     return (
@@ -90,9 +101,6 @@ export function AllAuctions() {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold">All Auctions</h1>
-            <span className="inline-flex items-center rounded-full bg-muted border border-border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-              {CHAIN_METADATA[chainId]?.name ?? `Chain ${chainId}`}
-            </span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {auctions.length} auction{auctions.length !== 1 ? "s" : ""}
@@ -103,6 +111,8 @@ export function AllAuctions() {
           Refresh
         </Button>
       </div>
+
+      <SubmitAuctionForm onSuccess={refetchCommunity} />
 
       <div className="rounded-lg border">
         <Table>
@@ -118,11 +128,11 @@ export function AllAuctions() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {[...auctions].reverse().map((auction) => (
+            {pageRows.map((auction) => (
               <TableRow
                 key={auction.ccaAddress}
                 className="cursor-pointer hover:bg-muted/50"
-                onClick={() => router.push(`/auctions/${auction.ccaAddress}?chain=${chainId}`)}
+                onClick={() => router.push(`/auctions/${auction.ccaAddress}?chain=${auction.chainId}`)}
               >
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   {auction.launchId === BigInt(0) ? "—" : `#${auction.launchId.toString()}`}
@@ -142,7 +152,7 @@ export function AllAuctions() {
                       )}
                     </div>
                     <a
-                      href={getExplorerUrl(chainId, "address", auction.token)}
+                      href={getExplorerUrl(auction.chainId, "address", auction.token)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center text-muted-foreground hover:text-primary"
@@ -154,10 +164,10 @@ export function AllAuctions() {
                 </TableCell>
                 <TableCell>
                   <a
-                    href={getExplorerUrl(chainId, "address", auction.ccaAddress)}
+                    href={getExplorerUrl(auction.chainId, "address", auction.ccaAddress)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+                    className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {shortenAddress(auction.ccaAddress)}
@@ -167,13 +177,13 @@ export function AllAuctions() {
                 <TableCell className="text-right font-mono text-xs">
                   {formatAmount(auction.totalRaised, auction.currencyDecimals ?? 18)}
                   <span className="text-muted-foreground ml-1">
-                    {auction.currencySymbol ?? NATIVE_SYMBOL[chainId] ?? "ETH"}
+                    {auction.currencySymbol ?? NATIVE_SYMBOL[auction.chainId] ?? "ETH"}
                   </span>
                 </TableCell>
                 <TableCell className="text-right font-mono text-xs">
                   {formatAmount(auction.currentPrice, auction.currencyDecimals ?? 18)}
                   <span className="text-muted-foreground ml-1">
-                    {auction.currencySymbol ?? NATIVE_SYMBOL[chainId] ?? "ETH"}
+                    {auction.currencySymbol ?? NATIVE_SYMBOL[auction.chainId] ?? "ETH"}
                   </span>
                 </TableCell>
                 <TableCell className="text-center">
@@ -181,13 +191,41 @@ export function AllAuctions() {
                 </TableCell>
                 <TableCell className="text-center">
                   <span className="inline-flex items-center rounded-full bg-muted border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                    {CHAIN_METADATA[chainId]?.shortName ?? chainId}
+                    {CHAIN_METADATA[auction.chainId]?.shortName ?? auction.chainId}
                   </span>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-border">
+            <span className="text-xs text-muted-foreground">
+              {start + 1}–{Math.min(start + ROWS_PER_PAGE, sorted.length)} of {sorted.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-xs text-muted-foreground px-2">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

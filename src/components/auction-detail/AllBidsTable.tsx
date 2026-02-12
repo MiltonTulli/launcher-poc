@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { formatUnits } from "viem";
 import { q96PriceToDisplay, q96Decode } from "@/lib/q96";
 import { shortenAddress } from "@/lib/utils";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { BidStatusBadge } from "./BidStatusBadge";
 import type { UseCCADataReturn } from "@/hooks/useCCAData";
 import type { CCABidEntry } from "@/config/types";
+
+const BIDS_PER_PAGE = 20;
 
 interface AllBidsTableProps {
   data: UseCCADataReturn;
@@ -23,6 +27,14 @@ export function AllBidsTable({ data }: AllBidsTableProps) {
 
   const tDec = tokenDecimals ?? 18;
   const cDec = currencyDecimals ?? 18;
+
+  // Show newest bids first
+  const sortedBids = [...allBids].reverse();
+  const totalPages = Math.max(1, Math.ceil(sortedBids.length / BIDS_PER_PAGE));
+  const [page, setPage] = useState(0);
+
+  const start = page * BIDS_PER_PAGE;
+  const pageBids = sortedBids.slice(start, start + BIDS_PER_PAGE);
 
   return (
     <div className="bg-card rounded-2xl border border-border shadow-sm flex flex-col">
@@ -73,7 +85,7 @@ export function AllBidsTable({ data }: AllBidsTableProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {allBids.map((entry) => (
+              {pageBids.map((entry) => (
                 <BidRow
                   key={entry.bidId}
                   entry={entry}
@@ -88,6 +100,34 @@ export function AllBidsTable({ data }: AllBidsTableProps) {
           </table>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border">
+          <span className="text-xs text-muted-foreground">
+            {start + 1}–{Math.min(start + BIDS_PER_PAGE, sortedBids.length)} of {sortedBids.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-xs text-muted-foreground px-2">
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

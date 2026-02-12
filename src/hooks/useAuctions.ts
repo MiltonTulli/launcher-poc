@@ -106,6 +106,7 @@ export function useAuctions(overrideChainId?: number) {
         token: token ?? (ZERO_ADDRESS as Address),
         launchId: launchId ?? BigInt(0),
         launchState: state,
+        chainId,
         startTime: auctionInfo.startTime ?? BigInt(0),
         endTime: auctionInfo.endTime ?? BigInt(0),
         currentPrice: auctionInfo.currentPrice ?? BigInt(0),
