@@ -18,10 +18,17 @@ const DEPLOYMENTS = {
     LockupContract: "0xB45707e755cec36c0013aBA68FeA6A54753606d1" as Address,
     TallyLaunchFactory: "0xDfe0F10dFA7c05423752b2AEfa6eD7Bad58fF084" as Address,
   },
+  V3: {
+    TestUSDC: "0x71cd6f71b8c6d0f12514b83b381b9b1618accd3b" as Address,
+    AuctionToken: "0xe6b2ae6d6eee3d2b8225ce54962b3ae4fc653fa4" as Address,
+    PermitterFactory: "0x7a102f1d5646ddb6cc2fe7b74559f706a42491ea" as Address,
+    LockupContract: "0xe847b376e81806430c856726c46d0b9d028c1454" as Address,
+    TallyLaunchFactory: "0xf30ae684807a41e9bd14e93b2aaeb2adcd0a1c12" as Address,
+  },
 };
 
 export const SEPOLIA_CONTRACTS = {
-  ...DEPLOYMENTS.V2,
+  ...DEPLOYMENTS.V3,
 } as const;
 
 // ============================================
