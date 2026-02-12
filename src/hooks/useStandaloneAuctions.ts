@@ -5,7 +5,7 @@ import { Address } from "viem";
 import { useReadContracts } from "wagmi";
 import {
   CCA_AUCTION_ABI,
-  ERC20_ABI,
+  ERC20_EXTENDED_ABI,
   LaunchState,
   STANDALONE_CCA_ADDRESSES,
 } from "@/config/contracts";
@@ -74,7 +74,7 @@ export function useStandaloneAuctions(overrideChainId?: number) {
   }, [addresses, ccaResults]);
 
   // Step 3: Fetch ERC20 metadata for token + currency
-  const META_FIELDS = 2;
+  const META_FIELDS = 3;
   const uniqueAddresses = useMemo(() => {
     const set = new Set<Address>();
     for (const a of baseAuctions) {
@@ -87,8 +87,9 @@ export function useStandaloneAuctions(overrideChainId?: number) {
   const metaContracts = useMemo(() => {
     if (uniqueAddresses.length === 0) return [];
     return uniqueAddresses.flatMap((addr) => [
-      { address: addr, abi: ERC20_ABI, functionName: "symbol" as const, chainId },
-      { address: addr, abi: ERC20_ABI, functionName: "decimals" as const, chainId },
+      { address: addr, abi: ERC20_EXTENDED_ABI, functionName: "symbol" as const, chainId },
+      { address: addr, abi: ERC20_EXTENDED_ABI, functionName: "name" as const, chainId },
+      { address: addr, abi: ERC20_EXTENDED_ABI, functionName: "decimals" as const, chainId },
     ]);
   }, [uniqueAddresses, chainId]);
 
@@ -98,13 +99,14 @@ export function useStandaloneAuctions(overrideChainId?: number) {
   });
 
   const metaMap = useMemo(() => {
-    const map = new Map<Address, { symbol?: string; decimals?: number }>();
+    const map = new Map<Address, { symbol?: string; name?: string; decimals?: number }>();
     if (!metaResults) return map;
     for (let i = 0; i < uniqueAddresses.length; i++) {
       const base = i * META_FIELDS;
       map.set(uniqueAddresses[i], {
         symbol: metaResults[base]?.result as string | undefined,
-        decimals: metaResults[base + 1]?.result as number | undefined,
+        name: metaResults[base + 1]?.result as string | undefined,
+        decimals: metaResults[base + 2]?.result as number | undefined,
       });
     }
     return map;
@@ -129,6 +131,7 @@ export function useStandaloneAuctions(overrideChainId?: number) {
         isActive: a.isActive,
         hasEnded: a.hasEnded,
         tokenSymbol: tokenMeta?.symbol,
+        tokenName: tokenMeta?.name,
         tokenDecimals: tokenMeta?.decimals,
         currencySymbol: currencyMeta?.symbol,
         currencyDecimals: currencyMeta?.decimals,

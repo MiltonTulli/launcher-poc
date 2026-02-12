@@ -19,6 +19,18 @@ import { shortenAddress, getExplorerUrl } from "@/lib/utils";
 import { CHAIN_METADATA } from "@/config/chains";
 import type { AuctionEntry } from "@/config/types";
 
+/** Format a bigint amount with up to `maxDecimals` fractional digits; prefix with ~ if truncated. */
+function formatAmount(value: bigint, decimals: number, maxDecimals = 4): string {
+  const raw = formatUnits(value, decimals);
+  const [int, dec] = raw.split(".");
+  if (!dec || dec.length <= maxDecimals) return raw;
+  const truncated = dec.slice(0, maxDecimals).replace(/0+$/, "");
+  return `~${int}${truncated ? `.${truncated}` : ""}`;
+}
+
+/** Native currency symbol per chain. */
+const NATIVE_SYMBOL: Record<number, string> = { 1: "ETH", 11155111: "ETH", 8453: "ETH", 84532: "ETH" };
+
 function StatusBadge({ auction }: { auction: AuctionEntry }) {
   const label = auction.isActive
     ? "Live"
@@ -117,19 +129,25 @@ export function AllAuctions() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
-                    {auction.tokenSymbol && (
-                      <span className="text-xs font-medium text-foreground">
-                        {auction.tokenSymbol}
-                      </span>
-                    )}
+                    <div className="flex flex-col">
+                      {auction.tokenSymbol && (
+                        <span className="text-xs font-medium text-foreground">
+                          {auction.tokenSymbol}
+                        </span>
+                      )}
+                      {auction.tokenName && (
+                        <span className="text-[10px] text-muted-foreground leading-tight">
+                          {auction.tokenName}
+                        </span>
+                      )}
+                    </div>
                     <a
                       href={getExplorerUrl(chainId, "address", auction.token)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+                      className="flex items-center text-muted-foreground hover:text-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {shortenAddress(auction.token)}
                       <ExternalLink className="h-3 w-3 shrink-0" />
                     </a>
                   </div>
@@ -147,16 +165,16 @@ export function AllAuctions() {
                   </a>
                 </TableCell>
                 <TableCell className="text-right font-mono text-xs">
-                  {formatUnits(auction.totalRaised, auction.currencyDecimals ?? 18)}
-                  {auction.currencySymbol && (
-                    <span className="text-muted-foreground ml-1">{auction.currencySymbol}</span>
-                  )}
+                  {formatAmount(auction.totalRaised, auction.currencyDecimals ?? 18)}
+                  <span className="text-muted-foreground ml-1">
+                    {auction.currencySymbol ?? NATIVE_SYMBOL[chainId] ?? "ETH"}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right font-mono text-xs">
-                  {formatUnits(auction.currentPrice, auction.currencyDecimals ?? 18)}
-                  {auction.currencySymbol && (
-                    <span className="text-muted-foreground ml-1">{auction.currencySymbol}</span>
-                  )}
+                  {formatAmount(auction.currentPrice, auction.currencyDecimals ?? 18)}
+                  <span className="text-muted-foreground ml-1">
+                    {auction.currencySymbol ?? NATIVE_SYMBOL[chainId] ?? "ETH"}
+                  </span>
                 </TableCell>
                 <TableCell className="text-center">
                   <StatusBadge auction={auction} />

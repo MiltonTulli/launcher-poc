@@ -267,6 +267,7 @@ export interface AuctionEntry {
   isActive: boolean;
   hasEnded: boolean;
   tokenSymbol?: string;
+  tokenName?: string;
   tokenDecimals?: number;
   currencySymbol?: string;
   currencyDecimals?: number;
