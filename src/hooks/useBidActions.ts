@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Address, parseUnits, maxUint256 } from "viem";
 import {
   useAccount,
+  useChainId,
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
@@ -15,6 +16,7 @@ import {
 } from "@/config/contracts";
 import { ZERO_ADDRESS } from "@/lib/utils";
 import { alignPriceToTick, decimalToTickAlignedQ96 } from "@/lib/q96";
+import type { Hex } from "viem";
 
 // Max uint160 for Permit2 approval amount
 const MAX_UINT160 = BigInt("1461501637330902918203684832716283019655932542975");
@@ -28,6 +30,7 @@ interface UseBidActionsOptions {
   tokenDecimals: number | undefined;
   maxBidPrice: bigint | undefined;
   tickSpacing: bigint | undefined;
+  permitterAddress?: Address;
   onSuccess?: () => void;
 }
 
@@ -38,10 +41,15 @@ export function useBidActions({
   tokenDecimals,
   maxBidPrice,
   tickSpacing,
+  permitterAddress,
   onSuccess,
 }: UseBidActionsOptions) {
   const { address: owner } = useAccount();
+  const chainId = useChainId();
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+
+  const needsPermit =
+    !!permitterAddress && permitterAddress !== ZERO_ADDRESS;
 
   const {
     writeContract,
@@ -99,7 +107,7 @@ export function useBidActions({
 
   /** Submit a bid to the CCA contract. Both approvals must be done first for ERC20. */
   const submitBid = useCallback(
-    (amount: string, maxPriceInput: string, isMarketOrder: boolean) => {
+    async (amount: string, maxPriceInput: string, isMarketOrder: boolean) => {
       if (!owner) return;
       const cDec = currencyDecimals ?? 18;
       const tDec = tokenDecimals ?? 18;
@@ -116,15 +124,40 @@ export function useBidActions({
       if (maxPriceQ96 === BigInt(0)) return;
 
       setPendingAction("submitBid");
+
+      let hookData: Hex = "0x";
+      if (needsPermit) {
+        try {
+          const res = await fetch("/api/permit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bidder: owner,
+              permitterAddress,
+              chainId,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || "Failed to fetch permit");
+          }
+          const data = await res.json();
+          hookData = data.hookData as Hex;
+        } catch (e) {
+          setPendingAction(null);
+          throw e;
+        }
+      }
+
       writeContract({
         address: ccaAddress,
         abi: CCA_AUCTION_ABI,
         functionName: "submitBid",
-        args: [maxPriceQ96, amountUnits, owner, "0x"],
+        args: [maxPriceQ96, amountUnits, owner, hookData],
         ...(isNativeCurrency ? { value: amountUnits } : {}),
       });
     },
-    [owner, currencyDecimals, tokenDecimals, tickSpacing, maxBidPrice, isNativeCurrency, ccaAddress, writeContract],
+    [owner, currencyDecimals, tokenDecimals, tickSpacing, maxBidPrice, isNativeCurrency, ccaAddress, writeContract, needsPermit, permitterAddress, chainId],
   );
 
   const exitBid = useCallback(

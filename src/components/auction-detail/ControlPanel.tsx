@@ -54,6 +54,7 @@ export function ControlPanel({ data, ccaAddress }: ControlPanelProps) {
     tokenDecimals,
     maxBidPrice,
     tickSpacing,
+    permitterAddress: validationHook,
     onSuccess: refetch,
   });
 
