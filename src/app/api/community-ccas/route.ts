@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress, createPublicClient, http, type Address, type Chain } from "viem";
-import { mainnet, sepolia, arbitrum } from "viem/chains";
+import { mainnet, sepolia, arbitrum, arbitrumSepolia } from "viem/chains";
 import { redis } from "@/lib/kv";
 import { CCA_AUCTION_ABI, STANDALONE_CCA_ADDRESSES } from "@/config/contracts";
 import { CHAIN_METADATA } from "@/config/chains";
@@ -18,6 +18,7 @@ const CHAINS: Record<number, Chain> = {
   1: mainnet,
   11155111: sepolia,
   42161: arbitrum,
+  421614: arbitrumSepolia,
 };
 
 function getPublicClient(chainId: number) {
