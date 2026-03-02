@@ -56,7 +56,62 @@ export function ControlPanel({ data, ccaAddress }: ControlPanelProps) {
     onSuccess: refetch,
   });
 
-  // Hotfix: always show bid form regardless of phase
+  // Coming soon — skip block validation, always allow bidding
+
+  // Ended / Failed
+  if (phase === CCAPhase.ENDED || phase === CCAPhase.FAILED) {
+    return (
+      <PanelShell>
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+          <h3 className="text-lg font-semibold mb-1">Auction Ended</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            {phase === CCAPhase.FAILED
+              ? "Auction did not meet graduation requirements."
+              : "Waiting for graduation..."}
+          </p>
+        </div>
+        <UserBidsSection
+          userBids={userBids}
+          phase={phase}
+          tDec={tDec}
+          cDec={cDec}
+          tokenSymbol={tokenSymbol}
+          currencySymbol={currencySymbol}
+          maxBidPrice={maxBidPrice}
+          actions={actions}
+        />
+      </PanelShell>
+    );
+  }
+
+  // Claimable
+  if (phase === CCAPhase.CLAIMABLE) {
+    const hasActiveBids = userBids.some((b) => b.status === BidStatus.ACTIVE);
+    return (
+      <PanelShell>
+        <div className="p-4 border-b border-border">
+          <h3 className="text-lg font-semibold">Claim Tokens</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            {hasActiveBids
+              ? "Exit your bids first to settle them, then claim your tokens."
+              : "The auction has graduated. Claim your tokens below."}
+          </p>
+        </div>
+        <UserBidsSection
+          userBids={userBids}
+          phase={phase}
+          tDec={tDec}
+          cDec={cDec}
+          tokenSymbol={tokenSymbol}
+          currencySymbol={currencySymbol}
+          maxBidPrice={maxBidPrice}
+          actions={actions}
+        />
+      </PanelShell>
+    );
+  }
+
+  // LIVE phase — full bid form
   return (
     <PanelShell>
       {hasValidationHook && (
@@ -564,8 +619,8 @@ function UserBidsSection({
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {/* ACTIVE bids: always allow exit */}
-                  {status === BidStatus.ACTIVE && (
+                  {/* ACTIVE bids: Exit during LIVE, or Exit after auction ends (required before claiming) */}
+                  {status === BidStatus.ACTIVE && (phase === CCAPhase.LIVE || phase >= CCAPhase.ENDED) && (
                     <Button
                       variant="ghost"
                       size="sm"
