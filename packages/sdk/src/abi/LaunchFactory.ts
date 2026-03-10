@@ -189,6 +189,11 @@ export const launchFactoryAbi = [
                 "internalType": "uint24"
               },
               {
+                "name": "tickSpacing",
+                "type": "int24",
+                "internalType": "int24"
+              },
+              {
                 "name": "tickLower",
                 "type": "int24",
                 "internalType": "int24"
