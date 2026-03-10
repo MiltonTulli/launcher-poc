@@ -120,6 +120,11 @@ export const launchOrchestratorAbi = [
                 "internalType": "uint24"
               },
               {
+                "name": "tickSpacing",
+                "type": "int24",
+                "internalType": "int24"
+              },
+              {
                 "name": "tickLower",
                 "type": "int24",
                 "internalType": "int24"
@@ -726,6 +731,19 @@ export const launchOrchestratorAbi = [
   {
     "type": "function",
     "name": "tickLower",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "int24",
+        "internalType": "int24"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tickSpacing",
     "inputs": [],
     "outputs": [
       {
