@@ -8,12 +8,7 @@ import {OrchestratorDeployer} from "../src/OrchestratorDeployer.sol";
 import {TokenFactory} from "../src/TokenFactory.sol";
 import {ILaunchOrchestrator} from "../src/interfaces/ILaunchOrchestrator.sol";
 import {MockCCA} from "./mocks/MockCCA.sol";
-import {
-    LaunchParams,
-    PlatformFeeConfig,
-    TokenSource,
-    LaunchState
-} from "../src/types/LaunchTypes.sol";
+import {LaunchParams, PlatformFeeConfig, TokenSource, LaunchState} from "../src/types/LaunchTypes.sol";
 import {
     InvalidState,
     OnlyOperator,
