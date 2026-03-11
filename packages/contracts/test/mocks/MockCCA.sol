@@ -23,7 +23,13 @@ contract MockCCA is ICCA {
     bool public sweepUnsoldTokensCalled;
     bool public sweepCurrencyCalled;
 
-    constructor(address token_, address currency_, address tokensRecipient_, address fundsRecipient_, uint64 endBlock_) {
+    constructor(
+        address token_,
+        address currency_,
+        address tokensRecipient_,
+        address fundsRecipient_,
+        uint64 endBlock_
+    ) {
         _token = token_;
         _currency = currency_;
         _tokensRecipient = tokensRecipient_;
