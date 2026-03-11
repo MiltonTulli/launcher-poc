@@ -18,7 +18,8 @@ contract PostAuctionHandlerTest is TestBase {
 
     uint256 constant TOKEN_AMOUNT = 500_000e18;
     uint256 constant PAYMENT_AMOUNT = 250_000e6;
-    uint256 constant CLEARING_PRICE = 5e5; // 0.5 USDC per token
+    uint256 constant Q96 = 2 ** 96;
+    uint256 constant CLEARING_PRICE = Q96 / 2; // 0.5 in Q96 format (CCA convention)
     uint24 constant POOL_FEE = 3000;
     int24 constant TICK_SPACING = 60;
 
@@ -249,16 +250,18 @@ contract PriceLibTest is TestBase {
     function test_clearingPriceToSqrtPriceX96_tokenOrdering() public pure {
         address tokenA = address(0x1);
         address tokenB = address(0x2);
+        uint256 q96 = 2 ** 96;
 
-        uint160 priceAB = PriceLib.clearingPriceToSqrtPriceX96(1e6, tokenA, tokenB);
-        uint160 priceBA = PriceLib.clearingPriceToSqrtPriceX96(1e6, tokenB, tokenA);
+        uint160 priceAB = PriceLib.clearingPriceToSqrtPriceX96(q96 / 2, tokenA, tokenB);
+        uint160 priceBA = PriceLib.clearingPriceToSqrtPriceX96(q96 / 2, tokenB, tokenA);
 
         // Different orderings should give different prices
         assertTrue(priceAB != priceBA, "Token ordering should affect price");
     }
 
     function test_clearingPriceToSqrtPriceX96_nonZero() public pure {
-        uint160 result = PriceLib.clearingPriceToSqrtPriceX96(5e5, address(0x1), address(0x2));
+        uint256 q96 = 2 ** 96;
+        uint160 result = PriceLib.clearingPriceToSqrtPriceX96(q96 / 2, address(0x1), address(0x2));
         assertTrue(result > 0, "sqrtPriceX96 should be non-zero");
     }
 
@@ -273,12 +276,120 @@ contract PriceLibTest is TestBase {
         vm.expectRevert("PriceLib: zero amount1");
         wrapper.computeSqrtPriceX96(1e18, 0);
     }
+
+    // ============================================
+    // clearingPriceToSqrtPriceX96 — Q96 correctness
+    // ============================================
+
+    function test_clearingPriceQ96_unitPrice_auctionIsToken0() public pure {
+        // CCA clearing price = 1.0 → Q96 = 2^96
+        // auctionToken < paymentToken → token0=auction, token1=payment
+        // sqrtPriceX96 = sqrt(price) * 2^96 = sqrt(1) * 2^96 = 2^96
+        uint256 q96 = 2 ** 96;
+        uint160 result = PriceLib.clearingPriceToSqrtPriceX96(q96, address(0x1), address(0x2));
+        assertEq(result, uint160(q96), "Unit price should give sqrtPriceX96 = 2^96");
+    }
+
+    function test_clearingPriceQ96_unitPrice_auctionIsToken1() public pure {
+        // CCA clearing price = 1.0 → Q96 = 2^96
+        // auctionToken > paymentToken → token0=payment, token1=auction
+        // Inverted: sqrtPriceX96 = sqrt(1/price) * 2^96 = 2^96
+        uint256 q96 = 2 ** 96;
+        uint160 result = PriceLib.clearingPriceToSqrtPriceX96(q96, address(0x2), address(0x1));
+        assertEq(result, uint160(q96), "Unit price inverted should also give 2^96");
+    }
+
+    function test_clearingPriceQ96_priceOf4_auctionIsToken0() public pure {
+        // CCA clearing price = 4.0 → Q96 = 4 * 2^96
+        // token0=auction, token1=payment → sqrtPriceX96 = sqrt(4) * 2^96 = 2 * 2^96
+        uint256 q96 = 2 ** 96;
+        uint256 priceQ96 = 4 * q96;
+        uint160 result = PriceLib.clearingPriceToSqrtPriceX96(priceQ96, address(0x1), address(0x2));
+        assertEq(result, uint160(2 * q96), "Price=4 should give sqrtPriceX96 = 2 * 2^96");
+    }
+
+    function test_clearingPriceQ96_priceOf4_auctionIsToken1() public pure {
+        // CCA clearing price = 4.0 → Q96 = 4 * 2^96
+        // token0=payment, token1=auction → sqrtPriceX96 = sqrt(1/4) * 2^96 = 0.5 * 2^96 = 2^95
+        uint256 q96 = 2 ** 96;
+        uint256 priceQ96 = 4 * q96;
+        uint160 result = PriceLib.clearingPriceToSqrtPriceX96(priceQ96, address(0x2), address(0x1));
+        assertEq(result, uint160(2 ** 95), "Price=4 inverted should give sqrtPriceX96 = 2^95");
+    }
+
+    function test_clearingPriceQ96_inverseRelationship() public pure {
+        // For price P: when auction is token0, sqrtPrice = sqrt(P) * 2^96
+        //              when auction is token1, sqrtPrice = sqrt(1/P) * 2^96
+        // Product should be (2^96)^2 = 2^192
+        uint256 q96 = 2 ** 96;
+        uint256 priceQ96 = 4 * q96; // price = 4
+
+        uint160 sqrtWhenToken0 = PriceLib.clearingPriceToSqrtPriceX96(priceQ96, address(0x1), address(0x2));
+        uint160 sqrtWhenToken1 = PriceLib.clearingPriceToSqrtPriceX96(priceQ96, address(0x2), address(0x1));
+
+        // sqrt(4) * sqrt(1/4) = 1, so sqrtWhenToken0 * sqrtWhenToken1 should equal Q96^2 = Q192
+        uint256 product = uint256(sqrtWhenToken0) * uint256(sqrtWhenToken1);
+        assertEq(product, 2 ** 192, "Inverse orderings should multiply to 2^192");
+    }
+
+    function test_clearingPriceQ96_revertsZeroPrice() public {
+        PriceLibWrapper wrapper = new PriceLibWrapper();
+        vm.expectRevert("PriceLib: zero clearing price");
+        wrapper.clearingPriceToSqrtPriceX96(0, address(0x1), address(0x2));
+    }
+
+    function test_clearingPriceQ96_withinTickRange() public pure {
+        // Verify output stays within Uniswap V4 valid sqrtPrice range
+        uint256 q96 = 2 ** 96;
+
+        // Test various prices: 0.01, 0.1, 1, 10, 100
+        uint256[5] memory prices = [q96 / 100, q96 / 10, q96, 10 * q96, 100 * q96];
+
+        for (uint256 i = 0; i < prices.length; i++) {
+            uint160 result = PriceLib.clearingPriceToSqrtPriceX96(prices[i], address(0x1), address(0x2));
+            assertTrue(result >= TickMath.MIN_SQRT_PRICE, "sqrtPrice below MIN");
+            assertTrue(result <= TickMath.MAX_SQRT_PRICE, "sqrtPrice above MAX");
+        }
+    }
+
+    function test_clearingPriceQ96_monotonic() public pure {
+        // Higher clearing price → higher sqrtPriceX96 (when auction is token0)
+        uint256 q96 = 2 ** 96;
+
+        uint160 priceLow = PriceLib.clearingPriceToSqrtPriceX96(q96 / 10, address(0x1), address(0x2));
+        uint160 priceMid = PriceLib.clearingPriceToSqrtPriceX96(q96, address(0x1), address(0x2));
+        uint160 priceHigh = PriceLib.clearingPriceToSqrtPriceX96(10 * q96, address(0x1), address(0x2));
+
+        assertTrue(priceLow < priceMid, "Lower price should give lower sqrtPrice");
+        assertTrue(priceMid < priceHigh, "Higher price should give higher sqrtPrice");
+    }
+
+    function test_clearingPriceQ96_monotonic_inverted() public pure {
+        // Higher clearing price → LOWER sqrtPriceX96 when auction is token1
+        // (because sqrtPrice = sqrt(1/P) * 2^96)
+        uint256 q96 = 2 ** 96;
+
+        uint160 priceLow = PriceLib.clearingPriceToSqrtPriceX96(q96 / 10, address(0x2), address(0x1));
+        uint160 priceMid = PriceLib.clearingPriceToSqrtPriceX96(q96, address(0x2), address(0x1));
+        uint160 priceHigh = PriceLib.clearingPriceToSqrtPriceX96(10 * q96, address(0x2), address(0x1));
+
+        assertTrue(priceLow > priceMid, "Lower price should give higher sqrtPrice (inverted)");
+        assertTrue(priceMid > priceHigh, "Higher price should give lower sqrtPrice (inverted)");
+    }
 }
 
 /// @notice External wrapper to allow vm.expectRevert on internal library calls
 contract PriceLibWrapper {
     function computeSqrtPriceX96(uint256 a, uint256 b) external pure returns (uint160) {
         return PriceLib.computeSqrtPriceX96(a, b);
+    }
+
+    function clearingPriceToSqrtPriceX96(uint256 price, address auction, address payment)
+        external
+        pure
+        returns (uint160)
+    {
+        return PriceLib.clearingPriceToSqrtPriceX96(price, auction, payment);
     }
 }
 

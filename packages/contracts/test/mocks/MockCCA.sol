@@ -17,15 +17,17 @@ contract MockCCA is ICCA {
     address private _tokensRecipient;
     address private _fundsRecipient;
 
+    uint256 private _tokensSold; // simulates totalCleared in real CCA
+
     bool public checkpointCalled;
     bool public sweepUnsoldTokensCalled;
     bool public sweepCurrencyCalled;
 
-    constructor(address token_, address currency_, address fundsRecipient_, uint64 endBlock_) {
+    constructor(address token_, address currency_, address tokensRecipient_, address fundsRecipient_, uint64 endBlock_) {
         _token = token_;
         _currency = currency_;
+        _tokensRecipient = tokensRecipient_;
         _fundsRecipient = fundsRecipient_;
-        _tokensRecipient = fundsRecipient_;
         _endBlock = endBlock_;
     }
 
@@ -51,6 +53,10 @@ contract MockCCA is ICCA {
 
     function setTokensRecipient(address recipient) external {
         _tokensRecipient = recipient;
+    }
+
+    function setTokensSold(uint256 sold) external {
+        _tokensSold = sold;
     }
 
     // ============================================
@@ -103,10 +109,12 @@ contract MockCCA is ICCA {
 
     function sweepUnsoldTokens() external override {
         sweepUnsoldTokensCalled = true;
-        // Transfer any remaining tokens to tokensRecipient
+        // Mirror real CCA: only transfer unsold tokens (balance - tokensSold),
+        // keeping sold tokens in CCA for bidders to claim via claimTokens()
         uint256 balance = IERC20(_token).balanceOf(address(this));
-        if (balance > 0) {
-            require(IERC20(_token).transfer(_tokensRecipient, balance), "transfer failed");
+        uint256 unsold = balance > _tokensSold ? balance - _tokensSold : 0;
+        if (unsold > 0) {
+            require(IERC20(_token).transfer(_tokensRecipient, unsold), "transfer failed");
         }
     }
 

@@ -16,6 +16,7 @@ import {VaultConfig} from "./types/LaunchTypes.sol";
 import {LaunchLiquidityVault} from "./LaunchLiquidityVault.sol";
 import {PriceLib} from "./lib/PriceLib.sol";
 import {PoolKeyLib} from "./lib/PoolKeyLib.sol";
+import {CurrencyLib} from "./lib/CurrencyLib.sol";
 
 /// @title PostAuctionHandler
 /// @notice Creates Uniswap V4 pool + LP position, deploys vault + lockup
@@ -48,7 +49,7 @@ contract PostAuctionHandler is IPostAuctionHandler, IERC721Receiver {
         bool lockupEnabled,
         uint64 lockupDuration,
         address positionBeneficiary
-    ) external override returns (address vault, uint256 positionTokenId) {
+    ) external payable override returns (address vault, uint256 positionTokenId) {
         // Pull tokens from caller
         _pullTokens(token, paymentToken, tokenAmount, paymentAmount);
 
@@ -75,7 +76,11 @@ contract PostAuctionHandler is IPostAuctionHandler, IERC721Receiver {
 
     function _pullTokens(address token, address paymentToken, uint256 tokenAmount, uint256 paymentAmount) internal {
         IERC20(token).safeTransferFrom(msg.sender, address(this), tokenAmount);
-        IERC20(paymentToken).safeTransferFrom(msg.sender, address(this), paymentAmount);
+        if (CurrencyLib.isNative(paymentToken)) {
+            require(msg.value == paymentAmount, "PostAuctionHandler: incorrect ETH amount");
+        } else {
+            IERC20(paymentToken).safeTransferFrom(msg.sender, address(this), paymentAmount);
+        }
     }
 
     function _returnUnusedTokens(address token, address paymentToken, address recipient) internal {
@@ -84,9 +89,9 @@ contract PostAuctionHandler is IPostAuctionHandler, IERC721Receiver {
             IERC20(token).safeTransfer(recipient, tokenBalance);
         }
 
-        uint256 paymentBalance = IERC20(paymentToken).balanceOf(address(this));
+        uint256 paymentBalance = CurrencyLib.balanceOf(paymentToken, address(this));
         if (paymentBalance > 0) {
-            IERC20(paymentToken).safeTransfer(recipient, paymentBalance);
+            CurrencyLib.safeTransfer(paymentToken, recipient, paymentBalance);
         }
     }
 
@@ -158,8 +163,8 @@ contract PostAuctionHandler is IPostAuctionHandler, IERC721Receiver {
         positionTokenId = abi.decode(idData, (uint256));
 
         // Transfer tokens to PositionManager so SETTLE(payerIsUser=false) can pay the PoolManager
-        IERC20(Currency.unwrap(poolKey.currency0)).safeTransfer(positionManager, amount0);
-        IERC20(Currency.unwrap(poolKey.currency1)).safeTransfer(positionManager, amount1);
+        CurrencyLib.safeTransfer(Currency.unwrap(poolKey.currency0), positionManager, amount0);
+        CurrencyLib.safeTransfer(Currency.unwrap(poolKey.currency1), positionManager, amount1);
 
         // Encode action sequence:
         // 1. MINT_POSITION_FROM_DELTAS — creates LP, generates debt deltas
@@ -254,4 +259,7 @@ contract PostAuctionHandler is IPostAuctionHandler, IERC721Receiver {
     function onERC721Received(address, address, uint256, bytes calldata) external pure override returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
+
+    /// @dev Accept native ETH for LP creation when paymentToken is address(0)
+    receive() external payable {}
 }

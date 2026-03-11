@@ -10,6 +10,7 @@ import {IAuctionInitializer} from "./interfaces/IAuctionInitializer.sol";
 import {IPostAuctionHandler} from "./interfaces/IPostAuctionHandler.sol";
 import {ITokenFactory} from "./interfaces/ITokenFactory.sol";
 import {ICCA} from "./interfaces/ICCA.sol";
+import {CurrencyLib} from "./lib/CurrencyLib.sol";
 import {
     LaunchParams,
     LiquidityInfo,
@@ -220,10 +221,10 @@ contract LaunchOrchestrator is ILaunchOrchestrator, ReentrancyGuard {
             auctionStepsData
         );
 
-        cca = auctionInitializer.createAuction(token, auctionTokenAmount, configData, bytes32(uint256(launchId)));
+        // Approve adapter to pull auction tokens via transferFrom
+        IERC20(token).safeIncreaseAllowance(address(auctionInitializer), auctionTokenAmount);
 
-        // Transfer auction tokens to CCA
-        IERC20(token).safeTransfer(cca, auctionTokenAmount);
+        cca = auctionInitializer.createAuction(token, auctionTokenAmount, configData, bytes32(uint256(launchId)));
 
         auctionEndBlock = auctionEndBlockConfig;
         state = LaunchState.FINALIZED;
@@ -279,7 +280,7 @@ contract LaunchOrchestrator is ILaunchOrchestrator, ReentrancyGuard {
 
         // Sweep funds and unsold tokens from CCA to orchestrator
         auction.sweepCurrency();
-        try auction.sweepUnsoldTokens() {} catch {}
+        auction.sweepUnsoldTokens();
 
         totalRaised = raised;
 
@@ -308,7 +309,7 @@ contract LaunchOrchestrator is ILaunchOrchestrator, ReentrancyGuard {
 
         // Send sale fee to platform
         if (saleFee > 0) {
-            IERC20(paymentToken).safeTransfer(platformFeeRecipient, saleFee);
+            CurrencyLib.safeTransfer(paymentToken, platformFeeRecipient, saleFee);
         }
 
         uint256 liquidityPaymentAmount = 0;
@@ -322,7 +323,9 @@ contract LaunchOrchestrator is ILaunchOrchestrator, ReentrancyGuard {
 
                 // Approve tokens for PostAuctionHandler
                 IERC20(token).safeIncreaseAllowance(address(postAuctionHandler), tokenLiqAmount);
-                IERC20(paymentToken).safeIncreaseAllowance(address(postAuctionHandler), liquidityPaymentAmount);
+                if (!CurrencyLib.isNative(paymentToken)) {
+                    IERC20(paymentToken).safeIncreaseAllowance(address(postAuctionHandler), liquidityPaymentAmount);
+                }
 
                 ICCA auction = ICCA(cca);
                 uint256 clearingPrice_ = auction.clearingPrice();
@@ -333,7 +336,10 @@ contract LaunchOrchestrator is ILaunchOrchestrator, ReentrancyGuard {
                     platformFeeBps: lpFeeShareBps
                 });
 
-                (address vault, uint256 posTokenId) = postAuctionHandler.createLiquidityPosition(
+                // Forward ETH via msg.value when paymentToken is native
+                uint256 ethValue = CurrencyLib.isNative(paymentToken) ? liquidityPaymentAmount : 0;
+
+                (address vault, uint256 posTokenId) = postAuctionHandler.createLiquidityPosition{value: ethValue}(
                     token,
                     paymentToken,
                     tokenLiqAmount,
@@ -360,7 +366,7 @@ contract LaunchOrchestrator is ILaunchOrchestrator, ReentrancyGuard {
         // Send remaining proceeds to treasury
         uint256 treasuryAmount = proceedsAfterFee - liquidityPaymentAmount;
         if (treasuryAmount > 0) {
-            IERC20(paymentToken).safeTransfer(treasuryAddress, treasuryAmount);
+            CurrencyLib.safeTransfer(paymentToken, treasuryAddress, treasuryAmount);
         }
 
         distributionTimestamp = block.timestamp;
@@ -404,9 +410,9 @@ contract LaunchOrchestrator is ILaunchOrchestrator, ReentrancyGuard {
 
     /// @inheritdoc ILaunchOrchestrator
     function sweepPaymentToken() external onlyOperator inState(LaunchState.DISTRIBUTED) {
-        uint256 balance = IERC20(paymentToken).balanceOf(address(this));
+        uint256 balance = CurrencyLib.balanceOf(paymentToken, address(this));
         if (balance > 0) {
-            IERC20(paymentToken).safeTransfer(treasuryAddress, balance);
+            CurrencyLib.safeTransfer(paymentToken, treasuryAddress, balance);
             emit PaymentTokenSwept(paymentToken, balance);
         }
     }
@@ -463,4 +469,7 @@ contract LaunchOrchestrator is ILaunchOrchestrator, ReentrancyGuard {
             }
         }
     }
+
+    /// @dev Accept native ETH from CCA sweepCurrency() when paymentToken is address(0)
+    receive() external payable {}
 }

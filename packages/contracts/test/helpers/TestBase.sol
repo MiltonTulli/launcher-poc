@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {
     LaunchParams,
     AuctionConfig,
@@ -132,10 +133,21 @@ abstract contract TestBase is Test {
     }
 
     /// @notice Simulate an auction with bids by funding the MockCCA with payment tokens
-    function simulateAuctionWithBids(address cca, uint256 raisedAmount, uint256 clearingPrice_) internal {
+    /// @param tokensSold_ Amount of auction tokens sold (kept in CCA for bidder claims,
+    ///        the rest is returned to tokensRecipient via sweepUnsoldTokens)
+    function simulateAuctionWithBids(address cca, uint256 raisedAmount, uint256 clearingPrice_, uint256 tokensSold_)
+        internal
+    {
         MockCCA(payable(cca)).setCurrencyRaised(raisedAmount);
         MockCCA(payable(cca)).setClearingPrice(clearingPrice_);
+        MockCCA(payable(cca)).setTokensSold(tokensSold_);
         // Fund the CCA with payment tokens to simulate actual raises
         paymentToken.mint(cca, raisedAmount);
+    }
+
+    /// @notice Convenience overload — assumes all auction tokens were sold
+    function simulateAuctionWithBids(address cca, uint256 raisedAmount, uint256 clearingPrice_) internal {
+        uint256 ccaTokenBalance = IERC20(auctionToken).balanceOf(cca);
+        simulateAuctionWithBids(cca, raisedAmount, clearingPrice_, ccaTokenBalance);
     }
 }

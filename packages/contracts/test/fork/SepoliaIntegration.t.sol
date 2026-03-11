@@ -185,7 +185,7 @@ contract SepoliaIntegrationTest is Test {
 
         assertTrue(orchAddr != address(0), "Orchestrator should be deployed");
 
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
         assertEq(uint8(orch.state()), uint8(LaunchState.SETUP));
         assertEq(orch.token(), token);
     }
