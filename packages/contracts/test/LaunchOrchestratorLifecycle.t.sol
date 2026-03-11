@@ -57,7 +57,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.tokenAllocation.liquidityTokenAmount = 0;
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         // 1. SETUP: Fund and finalize
         auctionToken.mint(orchAddr, AUCTION_TOKEN_AMOUNT);
@@ -105,7 +105,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.tokenAllocation.liquidityTokenAmount = 0;
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         auctionToken.mint(orchAddr, AUCTION_TOKEN_AMOUNT);
 
@@ -130,7 +130,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         LaunchParams memory params = createDefaultLaunchParams();
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         // Fund and then cancel
         uint256 totalTokens = AUCTION_TOKEN_AMOUNT + LIQUIDITY_TOKEN_AMOUNT;
@@ -155,7 +155,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.tokenAllocation.liquidityTokenAmount = 0;
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         // Operator holds the tokens and approves
         auctionToken.mint(operator, AUCTION_TOKEN_AMOUNT);
@@ -180,7 +180,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.tokenAllocation.liquidityTokenAmount = 0;
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         // Step 1: Create token
         TokenCreationParams memory tokenParams = TokenCreationParams({
@@ -206,7 +206,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.token = address(0);
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         TokenCreationParams memory tokenParams =
             TokenCreationParams({name: "LT", symbol: "LT", decimals: 18, initialSupply: 0, initialHolder: address(0)});
@@ -234,7 +234,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.token = address(0);
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         TokenCreationParams memory tokenParams =
             TokenCreationParams({name: "LT", symbol: "LT", decimals: 18, initialSupply: 0, initialHolder: address(0)});
@@ -256,7 +256,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.tokenAllocation.liquidityTokenAmount = 0;
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         // Skip createToken — go straight to finalize
         vm.prank(operator);
@@ -271,7 +271,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
     function test_cannotSettleFromSetup() public {
         LaunchParams memory params = createDefaultLaunchParams();
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         vm.prank(operator);
         vm.expectRevert(abi.encodeWithSelector(InvalidState.selector, LaunchState.SETUP, LaunchState.FINALIZED));
@@ -284,7 +284,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.tokenAllocation.liquidityTokenAmount = 0;
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         auctionToken.mint(orchAddr, AUCTION_TOKEN_AMOUNT);
         vm.prank(operator);
@@ -301,7 +301,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.tokenAllocation.liquidityTokenAmount = 0;
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         auctionToken.mint(orchAddr, AUCTION_TOKEN_AMOUNT);
         vm.prank(operator);
@@ -330,7 +330,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.tokenAllocation.liquidityTokenAmount = 0;
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch = LaunchOrchestrator(orchAddr);
+        LaunchOrchestrator orch = LaunchOrchestrator(payable(orchAddr));
 
         auctionToken.mint(orchAddr, AUCTION_TOKEN_AMOUNT);
 
@@ -362,8 +362,8 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         (, address orch1Addr) = launchFactory.createLaunch(params1);
         (, address orch2Addr) = launchFactory.createLaunch(params2);
 
-        LaunchOrchestrator orch1 = LaunchOrchestrator(orch1Addr);
-        LaunchOrchestrator orch2 = LaunchOrchestrator(orch2Addr);
+        LaunchOrchestrator orch1 = LaunchOrchestrator(payable(orch1Addr));
+        LaunchOrchestrator orch2 = LaunchOrchestrator(payable(orch2Addr));
 
         // Cancel launch 1
         vm.prank(operator);
@@ -387,7 +387,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
     function orchestrator() internal returns (LaunchOrchestrator) {
         LaunchParams memory params = createDefaultLaunchParams();
         (, address orchAddr) = launchFactory.createLaunch(params);
-        return LaunchOrchestrator(orchAddr);
+        return LaunchOrchestrator(payable(orchAddr));
     }
 
     function _createFullDistributedLaunch() internal returns (LaunchOrchestrator orch) {
@@ -396,7 +396,7 @@ contract LaunchOrchestratorLifecycleTest is TestBase {
         params.tokenAllocation.liquidityTokenAmount = 0;
 
         (, address orchAddr) = launchFactory.createLaunch(params);
-        orch = LaunchOrchestrator(orchAddr);
+        orch = LaunchOrchestrator(payable(orchAddr));
 
         auctionToken.mint(orchAddr, AUCTION_TOKEN_AMOUNT);
 

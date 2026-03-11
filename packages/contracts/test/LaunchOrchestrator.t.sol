@@ -51,7 +51,7 @@ contract LaunchOrchestratorTest is TestBase {
         params.liquidityConfig.enabled = false;
         params.tokenAllocation.liquidityTokenAmount = 0;
         (launchId,) = launchFactory.createLaunch(params);
-        orchestrator = LaunchOrchestrator(launchFactory.getLaunch(launchId));
+        orchestrator = LaunchOrchestrator(payable(launchFactory.getLaunch(launchId)));
 
         vm.label(address(orchestrator), "Orchestrator");
     }
@@ -101,7 +101,7 @@ contract LaunchOrchestratorTest is TestBase {
         // Create a launch with liquidity enabled to test insufficient balance
         LaunchParams memory params = createDefaultLaunchParams();
         (uint256 id2,) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch2 = LaunchOrchestrator(launchFactory.getLaunch(id2));
+        LaunchOrchestrator orch2 = LaunchOrchestrator(payable(launchFactory.getLaunch(id2)));
 
         // Fund with only auction amount, missing liquidity
         auctionToken.mint(address(orch2), AUCTION_TOKEN_AMOUNT);
@@ -117,7 +117,7 @@ contract LaunchOrchestratorTest is TestBase {
         LaunchParams memory params = createDefaultLaunchParams();
         params.tokenAllocation.auctionTokenAmount = 0;
         (uint256 id2,) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch2 = LaunchOrchestrator(launchFactory.getLaunch(id2));
+        LaunchOrchestrator orch2 = LaunchOrchestrator(payable(launchFactory.getLaunch(id2)));
 
         vm.prank(operator);
         vm.expectRevert(AuctionSupplyMustBePositive.selector);
@@ -154,7 +154,7 @@ contract LaunchOrchestratorTest is TestBase {
         LaunchParams memory params = createDefaultLaunchParams();
         params.tokenSource = TokenSource.EXISTING_TRANSFER_FROM;
         (uint256 id2,) = launchFactory.createLaunch(params);
-        LaunchOrchestrator orch2 = LaunchOrchestrator(launchFactory.getLaunch(id2));
+        LaunchOrchestrator orch2 = LaunchOrchestrator(payable(launchFactory.getLaunch(id2)));
 
         uint256 totalTokens = AUCTION_TOKEN_AMOUNT + LIQUIDITY_TOKEN_AMOUNT;
         auctionToken.mint(operator, totalTokens);

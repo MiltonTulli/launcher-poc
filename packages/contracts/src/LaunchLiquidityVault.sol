@@ -11,6 +11,7 @@ import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 
 import {ILaunchLiquidityVault} from "./interfaces/ILaunchLiquidityVault.sol";
 import {ILiquidityLockup} from "./interfaces/ILiquidityLockup.sol";
+import {CurrencyLib} from "./lib/CurrencyLib.sol";
 
 /// @title LaunchLiquidityVault
 /// @notice Custodian of LP position NFT with fee collection and platform/creator split
@@ -91,16 +92,16 @@ contract LaunchLiquidityVault is ILaunchLiquidityVault, IERC721Receiver, Reentra
             platformFee0 = (fee0 * platformFeeBps) / 10_000;
             creatorFee0 = fee0 - platformFee0;
 
-            if (platformFee0 > 0) IERC20(token0).safeTransfer(platformBeneficiary, platformFee0);
-            if (creatorFee0 > 0) IERC20(token0).safeTransfer(creatorBeneficiary, creatorFee0);
+            if (platformFee0 > 0) CurrencyLib.safeTransfer(token0, platformBeneficiary, platformFee0);
+            if (creatorFee0 > 0) CurrencyLib.safeTransfer(token0, creatorBeneficiary, creatorFee0);
         }
 
         if (fee1 > 0) {
             platformFee1 = (fee1 * platformFeeBps) / 10_000;
             creatorFee1 = fee1 - platformFee1;
 
-            if (platformFee1 > 0) IERC20(token1).safeTransfer(platformBeneficiary, platformFee1);
-            if (creatorFee1 > 0) IERC20(token1).safeTransfer(creatorBeneficiary, creatorFee1);
+            if (platformFee1 > 0) CurrencyLib.safeTransfer(token1, platformBeneficiary, platformFee1);
+            if (creatorFee1 > 0) CurrencyLib.safeTransfer(token1, creatorBeneficiary, creatorFee1);
         }
 
         emit FeesSplit(platformFee0, platformFee1, creatorFee0, creatorFee1);
@@ -141,8 +142,8 @@ contract LaunchLiquidityVault is ILaunchLiquidityVault, IERC721Receiver, Reentra
     /// @dev Collect accumulated fees from V4 position via DECREASE_LIQUIDITY(0) + TAKE_PAIR.
     ///      Override in tests to use mock.
     function _collectFees() internal virtual returns (uint256 fee0, uint256 fee1) {
-        uint256 balance0Before = IERC20(token0).balanceOf(address(this));
-        uint256 balance1Before = IERC20(token1).balanceOf(address(this));
+        uint256 balance0Before = CurrencyLib.balanceOf(token0, address(this));
+        uint256 balance1Before = CurrencyLib.balanceOf(token1, address(this));
 
         // Encode: DECREASE_LIQUIDITY with 0 liquidity (collects fees) + TAKE_PAIR (sends to vault)
         bytes memory actions = new bytes(2);
@@ -158,8 +159,8 @@ contract LaunchLiquidityVault is ILaunchLiquidityVault, IERC721Receiver, Reentra
         );
         require(success, "Vault: fee collection failed");
 
-        fee0 = IERC20(token0).balanceOf(address(this)) - balance0Before;
-        fee1 = IERC20(token1).balanceOf(address(this)) - balance1Before;
+        fee0 = CurrencyLib.balanceOf(token0, address(this)) - balance0Before;
+        fee1 = CurrencyLib.balanceOf(token1, address(this)) - balance1Before;
     }
 
     // ============================================
@@ -169,4 +170,7 @@ contract LaunchLiquidityVault is ILaunchLiquidityVault, IERC721Receiver, Reentra
     function onERC721Received(address, address, uint256, bytes calldata) external pure override returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
+
+    /// @dev Accept native ETH from Uniswap V4 fee collection when token0/token1 is address(0)
+    receive() external payable {}
 }

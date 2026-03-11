@@ -42,5 +42,5 @@ interface IPostAuctionHandler {
         bool lockupEnabled,
         uint64 lockupDuration,
         address positionBeneficiary
-    ) external returns (address vault, uint256 positionTokenId);
+    ) external payable returns (address vault, uint256 positionTokenId);
 }
