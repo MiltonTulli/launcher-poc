@@ -47,7 +47,9 @@ contract MockCCAFactory is IAuctionInitializer {
         } else {
             // Decode using Uniswap's AuctionParameters struct (matches real CCA factory)
             AuctionParameters memory params = abi.decode(configData, (AuctionParameters));
-            cca = address(new MockCCA(token, params.currency, params.tokensRecipient, params.fundsRecipient, params.endBlock));
+            cca = address(
+                new MockCCA(token, params.currency, params.tokensRecipient, params.fundsRecipient, params.endBlock)
+            );
         }
 
         // Forward tokens to the CCA and notify (mirrors real CCAAdapter behavior)

@@ -624,7 +624,8 @@ contract LaunchOrchestratorTest is TestBase {
         _setupAndFinalizeAuction();
 
         // Advance past rescue delay (auctionEndBlockConfig + 2 * permissionlessDistributionDelay)
-        uint256 rescueBlock = uint256(orchestrator.auctionEndBlockConfig()) + uint256(orchestrator.permissionlessDistributionDelay()) * 2;
+        uint256 rescueBlock =
+            uint256(orchestrator.auctionEndBlockConfig()) + uint256(orchestrator.permissionlessDistributionDelay()) * 2;
         vm.roll(rescueBlock);
 
         // Send accidental tokens

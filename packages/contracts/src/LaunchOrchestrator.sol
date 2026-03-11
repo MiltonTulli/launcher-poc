@@ -436,13 +436,9 @@ contract LaunchOrchestrator is ILaunchOrchestrator, ReentrancyGuard {
     function emergencyRescue(address tokenAddress) external onlyOperator nonReentrant {
         // Terminal states: immediate rescue allowed
         // Non-terminal states: require safety delay (2x permissionless delay after auction end)
-        if (
-            state != LaunchState.CANCELLED && state != LaunchState.AUCTION_FAILED
-                && state != LaunchState.DISTRIBUTED
-        ) {
+        if (state != LaunchState.CANCELLED && state != LaunchState.AUCTION_FAILED && state != LaunchState.DISTRIBUTED) {
             // For SETUP, FINALIZED, AUCTION_ENDED: require delay
-            uint256 rescueBlock =
-                uint256(auctionEndBlockConfig) + uint256(permissionlessDistributionDelay) * 2;
+            uint256 rescueBlock = uint256(auctionEndBlockConfig) + uint256(permissionlessDistributionDelay) * 2;
             if (block.number < rescueBlock) {
                 revert RescueNotAvailable(block.number, rescueBlock);
             }
