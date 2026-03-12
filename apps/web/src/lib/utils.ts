@@ -69,6 +69,13 @@ export function getExplorerUrl(chainId: number, type: "address" | "tx", hash: st
   return `${base}/${type}/${hash}`;
 }
 
+export function formatUsd(amount: number): string {
+  if (amount >= 1)
+    return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (amount >= 0.01) return `$${amount.toFixed(2)}`;
+  return `$${amount.toPrecision(3)}`;
+}
+
 export function timeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
   if (seconds < 60) return "just now";
