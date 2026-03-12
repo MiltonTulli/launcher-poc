@@ -5,7 +5,7 @@ import { CCA_PHASE_COLORS, CCA_PHASE_LABELS, CCAPhase } from "@/config/contracts
 import type { UseCCADataReturn } from "@/hooks/useCCAData";
 import { useTokenUsdPrice } from "@/hooks/useTokenUsdPrice";
 import { blocksToTimeEstimate, q96PriceToDisplay } from "@/lib/q96";
-import { formatUsd } from "@/lib/utils";
+import { formatCompactNumber, formatUsd } from "@/lib/utils";
 
 interface KeyMetricsProps {
   data: UseCCADataReturn;
@@ -98,7 +98,7 @@ export function KeyMetrics({ data }: KeyMetricsProps) {
           label="Tokens for Auction"
           value={
             totalSupply !== undefined
-              ? `${formatUnits(totalSupply, tDec)} ${tokenSymbol ?? ""}`
+              ? `${formatCompactNumber(formatUnits(totalSupply, tDec))} ${tokenSymbol ?? ""}`
               : "--"
           }
         />
