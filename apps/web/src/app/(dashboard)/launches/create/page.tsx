@@ -2,6 +2,6 @@
 
 import { CreateLaunchPage } from "@/features/launcher/pages";
 
-export default function NewLaunchPage() {
+export default function CreateLaunchRoute() {
   return <CreateLaunchPage />;
 }
